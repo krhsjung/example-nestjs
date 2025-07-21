@@ -2,6 +2,7 @@ import { DynamicModule, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ExampleConfigService } from '../config/example.config.service';
 import { ExampleConfigModule } from '../config/example.config.module';
+import { User } from './entities';
 
 @Module({})
 export class PostgresModule {
@@ -14,7 +15,7 @@ export class PostgresModule {
         replication: configService.postgresConfig,
         synchronize: false,
         logging: configService.isDevelopment,
-        entities: [],
+        entities: [User],
       }),
     });
   }
