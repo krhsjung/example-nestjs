@@ -23,7 +23,7 @@ export class ExampleConfigService extends ConfigService {
         port: this.get<number>('POSTGRES_PRIMARY_PORT') ?? 5432,
         username: this.get<string>('POSTGRES_USER') ?? 'example_nestjs',
         password: this.get<string>('POSTGRES_PASSWORD') ?? '',
-        database: this.get<string>('POSTGRES_NAME') ?? 'example',
+        database: this.get<string>('POSTGRES_DATABASE_NAME') ?? 'example',
       },
       slaves: [
         {
@@ -31,7 +31,7 @@ export class ExampleConfigService extends ConfigService {
           port: this.get<number>('POSTGRES_STANDBY_PORT') ?? 5433,
           username: this.get<string>('POSTGRES_USER') ?? 'example_nestjs',
           password: this.get<string>('POSTGRES_PASSWORD') ?? '',
-          database: this.get<string>('POSTGRES_NAME') ?? 'example',
+          database: this.get<string>('POSTGRES_DATABASE_NAME') ?? 'example',
         },
       ],
     };
