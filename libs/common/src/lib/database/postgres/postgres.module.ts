@@ -1,7 +1,7 @@
 import { DynamicModule, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { ExampleConfigService } from '../config/example.config.service';
-import { ExampleConfigModule } from '../config/example.config.module';
+import { ExampleConfigService } from '../../config/example.config.service';
+import { ExampleConfigModule } from '../../config/example.config.module';
 import { User } from './entities';
 
 @Module({})

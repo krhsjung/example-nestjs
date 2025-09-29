@@ -1,2 +1,2 @@
-export * from './postgres.module';
-export * from './entities';
+export * from './postgres';
+export * from './redis';

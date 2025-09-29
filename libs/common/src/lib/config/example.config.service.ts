@@ -1,3 +1,4 @@
+import { RedisMode } from '@example/common';
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PostgresConnectionCredentialsOptions } from 'typeorm/driver/postgres/PostgresConnectionCredentialsOptions';
@@ -14,6 +15,19 @@ export class ExampleConfigService extends ConfigService {
       this.get<string>('NODE_ENV') === 'development' ||
       this.get<string>('NODE_ENV') === 'local'
     );
+  }
+
+  get domain(): string {
+    return this.get<string>('SERVICE_DOMAIN') || '';
+  }
+
+  get domainUrl(): string {
+    return `https://${this.domain}`;
+  }
+
+  get globalPrefix(): string {
+    const env = this.get<string>('NODE_ENV') || 'local';
+    return `example/nestjs/${env}/api`;
   }
 
   get postgresConfig(): PostgresConfig {
@@ -34,6 +48,20 @@ export class ExampleConfigService extends ConfigService {
           database: this.get<string>('POSTGRES_DATABASE_NAME') ?? 'example',
         },
       ],
+    };
+  }
+
+  get redisMode(): RedisMode {
+    return this.get<RedisMode>('REDIS_MODE') || 'single';
+  }
+
+  get redisSingleConfig() {
+    return {
+      host: this.get<string>('REDIS_HOST', 'localhost'),
+      port: this.get<number>('REDIS_PORT', 6379),
+      password: this.get<string | null>('REDIS_PASSWORD', null),
+      db: this.get<number>('REDIS_DB', 0),
+      tls: this.get<string>('REDIS_TLS', 'false') === 'true',
     };
   }
 }
