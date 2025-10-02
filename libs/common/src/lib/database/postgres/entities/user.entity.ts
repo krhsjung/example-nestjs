@@ -1,3 +1,4 @@
+import { AuthProvider } from '@example/utils';
 import {
   Column,
   CreateDateColumn,
@@ -11,11 +12,20 @@ export class User {
   @PrimaryColumn('varchar', { name: 'id' })
   id!: string;
 
+  @Column({ type: 'varchar', name: 'provider', nullable: false })
+  provider!: AuthProvider;
+
+  @Column({ type: 'varchar', name: 'password', nullable: true })
+  password!: string;
+
   @Column({ type: 'varchar', name: 'name', nullable: false })
   name!: string;
 
   @Column({ type: 'varchar', name: 'email', unique: true, nullable: false })
   email!: string;
+
+  @Column({ type: 'varchar', name: 'picture', nullable: true })
+  picture?: string;
 
   @UpdateDateColumn({
     type: 'timestamp',
@@ -23,7 +33,7 @@ export class User {
     name: 'updatedAt',
     nullable: false,
   })
-  updatedAt!: Date;
+  updatedAt?: Date;
 
   @CreateDateColumn({
     type: 'timestamp',
@@ -31,5 +41,5 @@ export class User {
     name: 'createdAt',
     nullable: false,
   })
-  createdAt!: Date;
+  createdAt?: Date;
 }

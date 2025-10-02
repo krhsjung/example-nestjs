@@ -1,4 +1,4 @@
-import { RedisService } from '@example/common';
+import { RedisService } from '@example/utils';
 import {
   DynamicModule,
   Global,
@@ -10,8 +10,7 @@ import Redis, {
   Cluster,
   ClusterNode,
   ClusterOptions,
-  CommonRedisOptions,
-  SentinelConnectionOptions,
+  RedisOptions,
 } from 'ioredis';
 
 export const REDIS_CLIENT = Symbol('REDIS_CLIENT');
@@ -19,8 +18,8 @@ export const REDIS_CLIENT = Symbol('REDIS_CLIENT');
 export type RedisMode = 'single' | 'sentinel' | 'cluster';
 
 export type RedisModuleOptions =
-  | { mode: 'single'; option: CommonRedisOptions }
-  | { mode: 'sentinel'; option: SentinelConnectionOptions }
+  | { mode: 'single'; option: RedisOptions }
+  | { mode: 'sentinel'; option: RedisOptions }
   | { mode: 'cluster'; option?: ClusterOptions; nodes: ClusterNode[] };
 
 export interface RedisModuleAsyncOptions {

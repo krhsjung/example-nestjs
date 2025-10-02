@@ -4,16 +4,18 @@ import {
   ExampleConfigModule,
   ExampleConfigService,
   PostgresModule,
-  RedisModule,
 } from '@example/common';
 import { UserModule } from './user/user.module';
 import Keyv from 'keyv';
 import KeyvRedis from '@keyv/redis';
+import { AuthModule } from './auth/auth.module';
+import { RedisModule } from '@example/utils';
 
 @Module({
   imports: [
     ExampleConfigModule,
     UserModule,
+    AuthModule,
     PostgresModule.forRootAsync(),
     RedisModule.registerAsync({
       isGlobal: true,
@@ -49,6 +51,7 @@ import KeyvRedis from '@keyv/redis';
         }
 
         const redisConfig = configService.redisSingleConfig;
+
         const keyv = new Keyv({
           store: new KeyvRedis({
             host: redisConfig.host,

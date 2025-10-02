@@ -1,6 +1,8 @@
-import { RedisMode } from '@example/common';
+import { GoogleAuthCileOptions, RedisMode } from '@example/utils';
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { CookieOptions } from 'express';
+import { RedisOptions } from 'ioredis';
 import { PostgresConnectionCredentialsOptions } from 'typeorm/driver/postgres/PostgresConnectionCredentialsOptions';
 
 interface PostgresConfig {
@@ -55,13 +57,43 @@ export class ExampleConfigService extends ConfigService {
     return this.get<RedisMode>('REDIS_MODE') || 'single';
   }
 
-  get redisSingleConfig() {
+  get redisSingleConfig(): RedisOptions {
     return {
+      username: this.get<string>('REDIS_USERNAME', 'default'),
       host: this.get<string>('REDIS_HOST', 'localhost'),
       port: this.get<number>('REDIS_PORT', 6379),
-      password: this.get<string | null>('REDIS_PASSWORD', null),
+      password: this.get<string>('REDIS_PASSWORD', ''),
       db: this.get<number>('REDIS_DB', 0),
-      tls: this.get<string>('REDIS_TLS', 'false') === 'true',
+    };
+  }
+
+  get cookieOptions(): CookieOptions {
+    return {
+      httpOnly: !this.isDevelopment, // 개발 환경에서는 false로 설정하여 브라우저에서 확인 가능
+      secure: true, // HTTPS를 사용하므로 true
+      sameSite: 'none', // 크로스 도메인이므로 'none' 필요
+      path: '/',
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+    };
+  }
+
+  get googleClientId(): string {
+    return this.get<string>('EXAMPLE_GOOGLE_CLIENT_ID') || '';
+  }
+
+  get googleClientSecret(): string {
+    return this.get<string>('EXAMPLE_GOOGLE_CLIENT_SECRET') || '';
+  }
+
+  get googleRedirectUri(): string {
+    return `https://${this.domain}/${this.globalPrefix}/auth/google/callback`;
+  }
+
+  get googleClientOptions(): GoogleAuthCileOptions {
+    return {
+      googleClientId: this.googleClientId,
+      googleClientSecret: this.googleClientSecret,
+      googleRedirectUri: this.googleRedirectUri,
     };
   }
 }
