@@ -1,4 +1,8 @@
-import { GoogleAuthCileOptions, RedisMode } from '@example/utils';
+import {
+  AppleAuthClientOptions,
+  GoogleAuthClientOptions,
+  RedisMode,
+} from '@example/utils';
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { CookieOptions } from 'express';
@@ -77,6 +81,10 @@ export class ExampleConfigService extends ConfigService {
     };
   }
 
+  private providerReddirectUri(provider: string): string {
+    return `https://${this.domain}/${this.globalPrefix}/auth/${provider}/callback`;
+  }
+
   get googleClientId(): string {
     return this.get<string>('EXAMPLE_GOOGLE_CLIENT_ID') || '';
   }
@@ -86,14 +94,44 @@ export class ExampleConfigService extends ConfigService {
   }
 
   get googleRedirectUri(): string {
-    return `https://${this.domain}/${this.globalPrefix}/auth/google/callback`;
+    return this.providerReddirectUri('google');
   }
 
-  get googleClientOptions(): GoogleAuthCileOptions {
+  get googleClientOptions(): GoogleAuthClientOptions {
     return {
       googleClientId: this.googleClientId,
       googleClientSecret: this.googleClientSecret,
       googleRedirectUri: this.googleRedirectUri,
+    };
+  }
+
+  get appleTeamId(): string {
+    return this.get<string>('EXAMPLE_APPLE_TEAM_ID') || '';
+  }
+
+  get appleClientId(): string {
+    return this.get<string>('EXAMPLE_APPLE_CLIENT_ID') || '';
+  }
+
+  get appleKeyId(): string {
+    return this.get<string>('EXAMPLE_APPLE_KEY_ID') || '';
+  }
+
+  get applePrivateKey(): string {
+    return this.get<string>('EXAMPLE_APPLE_PRIVATE_KEY') || '';
+  }
+
+  get appleRedirectUri(): string {
+    return this.providerReddirectUri('apple');
+  }
+
+  get appleClientOptions(): AppleAuthClientOptions {
+    return {
+      appleTeamId: this.appleTeamId,
+      appleClientId: this.appleClientId,
+      appleKeyId: this.appleKeyId,
+      applePrivateKey: this.applePrivateKey,
+      appleRedirectUri: this.appleRedirectUri,
     };
   }
 }

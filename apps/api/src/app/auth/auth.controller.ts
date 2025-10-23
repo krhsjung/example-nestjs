@@ -12,15 +12,11 @@ import {
 import { Response } from 'express';
 import { AuthService } from './auth.service';
 import { ExampleConfigService, UserDto, LoginDto } from '@example/common';
-import {
-  AuthCallbackQuery,
-  AuthFlow,
-  AuthProvider,
-  Cookie,
-} from '@example/utils';
+import { AuthCallback, AuthFlow, AuthProvider, Cookie } from '@example/utils';
 
 const CONTROLLER_PREFIX = 'auth';
 const DEFAULT_AUTH_FLOW = AuthFlow.REDIRECT;
+type RedirectResponse = 'done' | 'error';
 
 @Controller(CONTROLLER_PREFIX)
 export class AuthController {
@@ -73,58 +69,112 @@ export class AuthController {
     response.redirect(this.authService.getAuthUrl(provider, flow, origin));
   }
 
-  @Get(':provider/callback')
-  async authCallback(
-    @Param('provider') provider: AuthProvider,
-    @Query() query: AuthCallbackQuery,
+  @Get('google/callback')
+  async authGooleCallback(
+    @Query() query: AuthCallback,
     @Res() response: Response
   ): Promise<void> {
-    const { code, state } = query;
+    this.logger.debug(`[authGoogleCallback] callback data:`, query);
 
+    if (query.error) {
+      return this.sendResponse(response, query.state, 'error', query.error);
+    }
+
+    await this.handleAuthCallback(
+      response,
+      AuthProvider.GOOGLE,
+      query.code,
+      query.state
+    );
+  }
+
+  @Post('apple/callback')
+  async authAppleCallback(
+    @Body() body: AuthCallback,
+    @Res() response: Response
+  ): Promise<void> {
+    this.logger.debug(`[authAppleCallback] callback data:`, body);
+
+    if (body.error) {
+      return this.sendResponse(response, body.state, 'error', body.error);
+    }
+
+    await this.handleAuthCallback(
+      response,
+      AuthProvider.APPLE,
+      body.code,
+      body.state
+    );
+  }
+
+  private parseState(state: string): { flow: AuthFlow; origin: string | null } {
+    return state
+      ? (JSON.parse(state) as { flow: AuthFlow; origin: string })
+      : { flow: DEFAULT_AUTH_FLOW as AuthFlow, origin: null };
+  }
+
+  private getTargetOrigin(origin: string | null, defaultPath: string): string {
+    return origin || this.configService.globalPrefix + defaultPath;
+  }
+
+  private sendResponse(
+    response: Response,
+    state: string,
+    type: RedirectResponse,
+    data?: UserDto | string
+  ): void {
+    const { flow, origin } = this.parseState(state);
+    const isDone = type === 'done';
+    const targetOrigin = this.getTargetOrigin(
+      origin,
+      isDone ? '/auth/success' : '/auth/error'
+    );
+
+    if (flow === AuthFlow.POPUP) {
+      const payload = {
+        type: `oauth:${type}`,
+        ok: isDone,
+        ...(isDone ? { user: data } : { message: data }),
+      };
+      response.type('html').send(this.popupRedirectHtml(targetOrigin, payload));
+    } else {
+      response.redirect(targetOrigin);
+    }
+  }
+
+  private async handleAuthCallback(
+    response: Response,
+    provider: AuthProvider,
+    code: string,
+    state: string
+  ) {
     const { sessionId, user } = await this.authService.handleAuthCallback(
       provider,
       code
     );
 
-    const cookieOptions = this.configService.cookieOptions;
-    response.cookie('sessionId', sessionId, cookieOptions);
+    response.cookie('sessionId', sessionId, this.configService.cookieOptions);
 
-    const { flow, origin } = state
-      ? (JSON.parse(state) as { flow: AuthFlow; origin: string })
-      : { flow: DEFAULT_AUTH_FLOW as AuthFlow, origin: null };
-
-    const targetOrigin =
-      origin || this.configService.globalPrefix + '/auth/success';
-
-    if (flow === AuthFlow.POPUP) {
-      response.type('html').send(this.popupRedirectHtml(targetOrigin, user));
-    } else if (flow === AuthFlow.REDIRECT) {
-      response.redirect(targetOrigin);
-    }
+    this.sendResponse(response, state, 'done', user);
   }
 
-  private popupRedirectHtml(targetOrigin: string, user: UserDto) {
+  private popupRedirectHtml(targetOrigin: string, payload: any): string {
     return `
       <!doctype html><meta charset="utf-8">
       <script>
       (function () {
-        var targetOrigin = "${targetOrigin}";
-        var user = ${JSON.stringify(user)};
-        function send() {
-          try {
-            if (window.opener) {
-              window.opener.postMessage({ 
-                type: "oauth:done", 
-                ok: true,
-                user: user 
-              }, targetOrigin);
-            }
-            window.close();
-          } catch (e) {}
+        try {
+          if (window.opener) {
+            window.opener.postMessage(${JSON.stringify(
+              payload
+            )}, "${targetOrigin}");
+          }
+          window.close();
+        } catch (e) {
+          console.error('Popup error:', e);
         }
-        send();
       })();
       </script>
-  `;
+    `;
   }
 }

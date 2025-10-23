@@ -10,7 +10,7 @@ const GOOGLE_AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
 const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token';
 const GOOGLE_USERINFO_URL = 'https://www.googleapis.com/oauth2/v2/userinfo';
 
-export interface GoogleAuthCileOptions {
+export interface GoogleAuthClientOptions {
   googleClientId: string;
   googleClientSecret: string;
   googleRedirectUri: string;
@@ -33,7 +33,7 @@ export class GoogleOAuthClient {
 
   constructor(
     private readonly httpService: HttpService,
-    private readonly options: GoogleAuthCileOptions
+    private readonly options: GoogleAuthClientOptions
   ) {
     this.client = new OAuth2Client({
       clientId: options.googleClientId,

@@ -1,4 +1,4 @@
-import { Inject, Injectable, OnModuleInit } from '@nestjs/common';
+import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { REDIS_CLIENT } from './redis.module';
 import Redis, { Cluster } from 'ioredis';
 
@@ -6,14 +6,16 @@ type Client = Redis | Cluster;
 
 @Injectable()
 export class RedisService implements OnModuleInit {
+  private logger = new Logger(RedisService.name, { timestamp: true });
+
   constructor(@Inject(REDIS_CLIENT) private readonly client: Client) {}
 
   async onModuleInit() {
     try {
       const pong = await this.ping();
-      console.log(`Redis connected: ${pong}`);
+      this.logger.log(`Redis connected: ${pong}`);
     } catch (e) {
-      console.log('Redis ping failed', e as any);
+      this.logger.log('Redis ping failed', e as any);
     }
   }
 

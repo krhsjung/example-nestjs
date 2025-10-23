@@ -2,6 +2,7 @@ import { RedisService } from '@example/utils';
 import {
   DynamicModule,
   Global,
+  Logger,
   Module,
   OnModuleDestroy,
   Provider,
@@ -12,6 +13,8 @@ import Redis, {
   ClusterOptions,
   RedisOptions,
 } from 'ioredis';
+
+const logger = new Logger('RedisModule', { timestamp: true });
 
 export const REDIS_CLIENT = Symbol('REDIS_CLIENT');
 
@@ -105,6 +108,8 @@ function createRedisProvider(options: RedisModuleOptions): Provider {
 
 function createClient(options: RedisModuleOptions): Redis | Cluster {
   const { mode, option } = options;
+
+  logger.log(`Initializing Redis client mode: ${mode}`);
 
   switch (mode) {
     case 'single':

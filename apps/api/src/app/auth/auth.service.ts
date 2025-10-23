@@ -1,5 +1,7 @@
 import { User, UserDto, LoginDto, ExampleConfigService } from '@example/common';
 import {
+  AppleOAuthClient,
+  AppleUserInformation,
   AuthFlow,
   AuthProvider,
   GoogleOAuthClient,
@@ -26,6 +28,7 @@ export interface SessionData {
 export class AuthService {
   private logger = new Logger(AuthService.name, { timestamp: true });
   private googleOAuthClient: GoogleOAuthClient;
+  private appleOAuthClient: AppleOAuthClient;
 
   constructor(
     @InjectRepository(User) private readonly userRepository: Repository<User>,
@@ -36,6 +39,11 @@ export class AuthService {
     this.googleOAuthClient = new GoogleOAuthClient(
       httpService,
       configService.googleClientOptions
+    );
+
+    this.appleOAuthClient = new AppleOAuthClient(
+      httpService,
+      configService.appleClientOptions
     );
   }
 
@@ -106,7 +114,7 @@ export class AuthService {
   getAuthUrl(provider: AuthProvider, flow: AuthFlow, origin?: string): string {
     const methodName = 'getAuthUrl';
 
-    console.log(
+    this.logger.log(
       `[${methodName}][${provider}]: type to ${provider}, flow: ${flow}, origin: ${origin}`
     );
 
@@ -114,6 +122,10 @@ export class AuthService {
       return this.googleOAuthClient.generateAuthUrl(
         JSON.stringify({ flow, origin }),
         OAuthMethod.DIRECT
+      );
+    } else if (provider === AuthProvider.APPLE) {
+      return this.appleOAuthClient.generateAuthUrl(
+        JSON.stringify({ flow, origin })
       );
     }
     throw new NotFoundException(`Unsupported auth type: ${provider}`);
@@ -130,7 +142,8 @@ export class AuthService {
     const sessionId = crypto.randomUUID();
 
     const handlers = {
-      [AuthProvider.GOOGLE]: () => this.handleGoogleCallback(provider, code),
+      [AuthProvider.GOOGLE]: () => this.handleGoogleCallback(code),
+      [AuthProvider.APPLE]: () => this.handleAppleCallback(code),
     };
 
     const handler = handlers[provider];
@@ -149,10 +162,7 @@ export class AuthService {
     return { sessionId, user };
   }
 
-  private async handleGoogleCallback(
-    provider: AuthProvider,
-    code: string
-  ): Promise<UserDto> {
+  private async handleGoogleCallback(code: string): Promise<UserDto> {
     const token = await this.googleOAuthClient.getToken(
       code,
       OAuthMethod.DIRECT
@@ -161,15 +171,34 @@ export class AuthService {
     const userInfo: GoogleUserInformation =
       await this.googleOAuthClient.getUserInfo(token.access_token);
 
-    this.userRepository.save({
-      id: userInfo.id,
-      email: userInfo.email,
-      name: userInfo.name,
-      picture: userInfo.picture,
-      provider: provider,
-    });
-
+    const provider: AuthProvider = AuthProvider.GOOGLE;
     const { id, email, name, picture } = userInfo;
-    return { id, email, name, picture, provider };
+    const userDto: UserDto = { id, email, name, picture, provider };
+
+    await this.userRepository.save(userDto);
+
+    return userDto;
+  }
+
+  private async handleAppleCallback(code: string): Promise<UserDto> {
+    const token = await this.appleOAuthClient.getToken(code);
+
+    const userInfo: AppleUserInformation =
+      await this.appleOAuthClient.getUserInfo(token.id_token);
+    this.logger.log(JSON.stringify(userInfo));
+
+    const provider: AuthProvider = AuthProvider.APPLE;
+
+    const userDto: UserDto = {
+      id: userInfo.sub,
+      email: userInfo.email || '',
+      name: userInfo.email?.split('@')[0] || '',
+      picture: '',
+      provider,
+    };
+
+    await this.userRepository.save(userDto);
+
+    return userDto;
   }
 }

@@ -23,7 +23,6 @@ import { RedisModule } from '@example/utils';
       inject: [ExampleConfigService],
       useFactory: (configService: ExampleConfigService) => {
         const mode = configService.redisMode;
-        console.log(`[AppModule] Redis mode: ${mode}`);
 
         // Currently, only 'single' mode is implemented.
         if (mode !== 'single') {
@@ -43,7 +42,6 @@ import { RedisModule } from '@example/utils';
       inject: [ExampleConfigService],
       useFactory: async (configService: ExampleConfigService) => {
         const mode = configService.redisMode;
-        console.log(`[AppModule] CacheModule Redis mode: ${mode}`);
 
         // Currently, only 'single' mode is implemented.
         if (mode !== 'single') {
