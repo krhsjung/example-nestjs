@@ -1,11 +1,13 @@
 import { AuthProvider } from '@example/utils';
 import {
+  BeforeInsert,
   Column,
   CreateDateColumn,
   Entity,
   PrimaryColumn,
   UpdateDateColumn,
 } from 'typeorm';
+import { v4 as uuidv4 } from 'uuid';
 
 @Entity({ schema: 'example', name: 'user' })
 export class User {
@@ -42,4 +44,11 @@ export class User {
     nullable: false,
   })
   createdAt?: Date;
+
+  @BeforeInsert()
+  generateId() {
+    if (!this.id) {
+      this.id = uuidv4();
+    }
+  }
 }

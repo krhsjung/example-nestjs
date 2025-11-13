@@ -13,7 +13,9 @@ import {
 import { UserService } from './user.service';
 import { UserDto } from '@example/common';
 
-@Controller('user')
+const CONTROLLER_PREFIX = 'user';
+
+@Controller(CONTROLLER_PREFIX)
 export class UserController {
   private logger = new Logger(UserController.name, { timestamp: true });
 
