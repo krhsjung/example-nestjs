@@ -48,7 +48,7 @@ export class AuthController {
   }
 
   @HttpCode(204)
-  @Get('logout')
+  @Post('logout')
   async logout(
     @Cookie('sessionId') sessionId: string,
     @Res({ passthrough: true }) response: Response
