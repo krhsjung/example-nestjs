@@ -1,0 +1,28 @@
+/**
+ * Common/Generic Exception Messages
+ *
+ * Format: { id: string, message: string }
+ * - id: Unique identifier for frontend i18n
+ * - message: Default English message
+ */
+
+export const COMMON_EXCEPTIONS = {
+  INTERNAL_SERVER_ERROR: {
+    id: 'common_internal_server_error',
+    message: 'Internal server error',
+  },
+  BAD_REQUEST: {
+    id: 'common_bad_request',
+    message: 'Bad request',
+  },
+  FORBIDDEN: {
+    id: 'common_forbidden',
+    message: 'Forbidden',
+  },
+  NOT_FOUND: {
+    id: 'common_not_found',
+    message: 'Resource not found',
+  },
+} as const;
+
+export type CommonExceptionKey = keyof typeof COMMON_EXCEPTIONS;

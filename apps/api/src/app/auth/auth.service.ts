@@ -1,4 +1,11 @@
-import { User, UserDto, LoginDto, ExampleConfigService } from '@example/common';
+import {
+  User,
+  UserDto,
+  LoginDto,
+  ExampleConfigService,
+  AUTH_EXCEPTIONS,
+  throwException,
+} from '@example/common';
 import {
   AppleOAuthClient,
   AppleUserInformation,
@@ -52,7 +59,7 @@ export class AuthService {
     this.logger.log(`[${methodName}] Me, sessionId: ${sessionId}`);
 
     if (!sessionId) {
-      throw new UnauthorizedException('Session not found');
+      throwException(UnauthorizedException, AUTH_EXCEPTIONS.SESSION_NOT_FOUND);
     }
 
     const userJson = await this.redisService.get(`session:${sessionId}`);
@@ -60,7 +67,7 @@ export class AuthService {
       return JSON.parse(userJson) as UserDto;
     }
 
-    throw new UnauthorizedException('Invalid session');
+    throwException(UnauthorizedException, AUTH_EXCEPTIONS.SESSION_INVALID);
   }
 
   async handleLogin(loginDto: LoginDto): Promise<SessionData> {
@@ -76,7 +83,7 @@ export class AuthService {
     });
 
     if (!user || user.password !== password) {
-      throw new NotFoundException('Invalid email or password');
+      throwException(NotFoundException, AUTH_EXCEPTIONS.CREDENTIALS_INVALID);
     }
 
     const sessionId = crypto.randomUUID();
@@ -106,7 +113,7 @@ export class AuthService {
     this.logger.log(`[${methodName}] Logout for sessionId: ${sessionId}`);
 
     if (!sessionId) {
-      throw new UnauthorizedException('Session not found');
+      throwException(UnauthorizedException, AUTH_EXCEPTIONS.SESSION_NOT_FOUND);
     }
     await this.redisService.del(`session:${sessionId}`);
   }
@@ -128,7 +135,7 @@ export class AuthService {
         JSON.stringify({ flow, origin })
       );
     }
-    throw new NotFoundException(`Unsupported auth type: ${provider}`);
+    throwException(NotFoundException, AUTH_EXCEPTIONS.PROVIDER_UNSUPPORTED);
   }
 
   async handleAuthCallback(
@@ -148,7 +155,7 @@ export class AuthService {
 
     const handler = handlers[provider];
     if (!handler) {
-      throw new NotFoundException(`Unsupported auth provider: ${provider}`);
+      throwException(NotFoundException, AUTH_EXCEPTIONS.PROVIDER_UNSUPPORTED);
     }
 
     const user = await handler();

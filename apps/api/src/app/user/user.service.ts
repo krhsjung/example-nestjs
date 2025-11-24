@@ -1,4 +1,9 @@
-import { User, UserDto } from '@example/common';
+import {
+  User,
+  UserDto,
+  USER_EXCEPTIONS,
+  throwException,
+} from '@example/common';
 import {
   ConflictException,
   Injectable,
@@ -26,8 +31,12 @@ export class UserService {
       if (exists.email === dto.email) {
         conflictFields.push('email');
       }
-      throw new ConflictException(
-        `User with ${conflictFields.join(', ')} already exists.`
+      throwException(
+        ConflictException,
+        USER_EXCEPTIONS.ALREADY_EXISTS,
+        {
+          fields: conflictFields.join(', '),
+        }
       );
     }
 
@@ -42,7 +51,11 @@ export class UserService {
     });
 
     if (!user) {
-      throw new NotFoundException(`User with id=${id} not found`);
+      throwException(
+        NotFoundException,
+        USER_EXCEPTIONS.NOT_FOUND,
+        { id }
+      );
     }
 
     return user;
@@ -52,7 +65,11 @@ export class UserService {
     const user = await this.repo.findOneBy({ id: id });
 
     if (!user) {
-      throw new NotFoundException(`User with id=${id} not found`);
+      throwException(
+        NotFoundException,
+        USER_EXCEPTIONS.NOT_FOUND,
+        { id }
+      );
     }
 
     Object.assign(user, dto);
@@ -64,7 +81,11 @@ export class UserService {
     const result = await this.repo.delete(id);
 
     if (!user || result.affected === 0) {
-      throw new NotFoundException(`User #${id} not found`);
+      throwException(
+        NotFoundException,
+        USER_EXCEPTIONS.NOT_FOUND,
+        { id }
+      );
     }
 
     return user;
