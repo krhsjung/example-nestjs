@@ -29,6 +29,15 @@ export class User {
   @Column({ type: 'varchar', name: 'picture', nullable: true })
   picture?: string;
 
+  @Column({
+    type: 'int',
+    name: 'max_sessions',
+    default: 1,
+    nullable: false,
+    comment: '사용자가 동시에 유지할 수 있는 최대 세션 수',
+  })
+  maxSessions!: number;
+
   @UpdateDateColumn({
     type: 'timestamp',
     default: () => 'CURRENT_TIMESTAMP',

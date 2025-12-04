@@ -5,7 +5,10 @@ import {
   ExampleConfigService,
   AUTH_EXCEPTIONS,
   throwException,
+  TokenService,
+  TokenSessionService,
 } from '@example/common';
+import { TokenPair } from '@example/utils';
 import {
   AppleOAuthClient,
   AppleUserInformation,
@@ -14,22 +17,11 @@ import {
   GoogleOAuthClient,
   GoogleUserInformation,
   OAuthMethod,
-  RedisService,
 } from '@example/utils';
 import { HttpService } from '@nestjs/axios';
-import {
-  Injectable,
-  Logger,
-  NotFoundException,
-  UnauthorizedException,
-} from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-
-export interface SessionData {
-  sessionId: string;
-  user: UserDto;
-}
 
 @Injectable()
 export class AuthService {
@@ -41,7 +33,8 @@ export class AuthService {
     @InjectRepository(User) private readonly userRepository: Repository<User>,
     private readonly httpService: HttpService,
     private readonly configService: ExampleConfigService,
-    private readonly redisService: RedisService
+    private readonly tokenService: TokenService,
+    private readonly tokenSessionService: TokenSessionService
   ) {
     this.googleOAuthClient = new GoogleOAuthClient(
       httpService,
@@ -54,29 +47,17 @@ export class AuthService {
     );
   }
 
-  async handleMe(sessionId: string): Promise<UserDto> {
-    const methodName = 'handleMe';
-    this.logger.log(`[${methodName}] Me, sessionId: ${sessionId}`);
+  /**
+   * /me 엔드포인트는 JwtAuthGuard에서 이미 user를 검증하므로
+   * Controller에서 @CurrentUser()로 직접 user를 반환하면 됨
+   * 이 메서드는 제거 가능
+   */
 
-    if (!sessionId) {
-      throwException(UnauthorizedException, AUTH_EXCEPTIONS.SESSION_NOT_FOUND);
-    }
-
-    const userJson = await this.redisService.get(`session:${sessionId}`);
-    if (userJson) {
-      return JSON.parse(userJson) as UserDto;
-    }
-
-    throwException(UnauthorizedException, AUTH_EXCEPTIONS.SESSION_INVALID);
-  }
-
-  async handleLogin(loginDto: LoginDto): Promise<SessionData> {
+  async handleLogin(loginDto: LoginDto): Promise<TokenPair> {
     const methodName = 'handleLogin';
     const { email, password } = loginDto;
 
-    this.logger.log(
-      `[${methodName}] Login for email: ${email} and password: ${password}`
-    );
+    this.logger.log(`[${methodName}] Login for email: ${email}`);
 
     const user = await this.userRepository.findOne({
       where: { email, password },
@@ -86,36 +67,43 @@ export class AuthService {
       throwException(NotFoundException, AUTH_EXCEPTIONS.CREDENTIALS_INVALID);
     }
 
-    const sessionId = crypto.randomUUID();
+    const userDto: UserDto = {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      picture: user.picture,
+      provider: user.provider,
+      maxSessions: user.maxSessions,
+    };
 
-    this.logger.log(
-      `[${methodName}] Login successful, sessionId: ${sessionId}`
-    );
+    // JWT 토큰 생성 및 Refresh Token을 Redis에 저장
+    const tokens = await this.tokenSessionService.createSession(userDto);
 
-    await this.redisService.set(
-      `session:${sessionId}`,
-      JSON.stringify({
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        picture: user.picture,
-        provider: user.provider,
-      }),
-      7 * 24 * 60 * 60
-    );
+    this.logger.log(`[${methodName}] Login successful for user: ${user.email}`);
 
-    return { sessionId, user };
+    return tokens;
   }
 
-  async handleLogout(sessionId: string): Promise<void> {
+  async handleLogout(userId: string, sessionId: string): Promise<void> {
     const methodName = 'handleLogout';
 
-    this.logger.log(`[${methodName}] Logout for sessionId: ${sessionId}`);
+    this.logger.log(
+      `[${methodName}] Logout for userId: ${userId}, session: ${sessionId}`
+    );
 
-    if (!sessionId) {
-      throwException(UnauthorizedException, AUTH_EXCEPTIONS.SESSION_NOT_FOUND);
-    }
-    await this.redisService.del(`session:${sessionId}`);
+    // Redis에서 특정 세션의 Refresh Token 삭제
+    await this.tokenSessionService.removeSession(userId, sessionId);
+  }
+
+  async handleLogoutAll(userId: string): Promise<void> {
+    const methodName = 'handleLogoutAll';
+
+    this.logger.log(
+      `[${methodName}] Logout all sessions for userId: ${userId}`
+    );
+
+    // Redis에서 모든 Refresh Token 삭제
+    await this.tokenSessionService.removeAllSessions(userId);
   }
 
   getAuthUrl(provider: AuthProvider, flow: AuthFlow, origin?: string): string {
@@ -141,12 +129,10 @@ export class AuthService {
   async handleAuthCallback(
     provider: AuthProvider,
     code: string
-  ): Promise<SessionData> {
+  ): Promise<TokenPair> {
     const methodName = 'handleAuthCallback';
 
     this.logger.log(`[${methodName}] Handle Auth callback code: ${code}`);
-
-    const sessionId = crypto.randomUUID();
 
     const handlers = {
       [AuthProvider.GOOGLE]: () => this.handleGoogleCallback(code),
@@ -160,13 +146,14 @@ export class AuthService {
 
     const user = await handler();
 
-    await this.redisService.set(
-      `session:${sessionId}`,
-      JSON.stringify(user),
-      7 * 24 * 60 * 60
+    // JWT 토큰 생성 및 Refresh Token을 Redis에 저장
+    const tokens = await this.tokenSessionService.createSession(user);
+
+    this.logger.log(
+      `[${methodName}] OAuth callback successful for user: ${user.email}`
     );
 
-    return { sessionId, user };
+    return tokens;
   }
 
   private async handleGoogleCallback(code: string): Promise<UserDto> {
@@ -180,9 +167,24 @@ export class AuthService {
 
     const provider: AuthProvider = AuthProvider.GOOGLE;
     const { id, email, name, picture } = userInfo;
-    const userDto: UserDto = { id, email, name, picture, provider };
 
-    await this.userRepository.save(userDto);
+    // 사용자 정보 저장 (없으면 생성, 있으면 업데이트)
+    await this.userRepository.save({ id, email, name, picture, provider });
+
+    // 저장된 사용자 정보 조회 (maxSessions 포함)
+    const user = await this.userRepository.findOne({ where: { id } });
+    if (!user) {
+      throw new Error('Failed to save user');
+    }
+
+    const userDto: UserDto = {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      picture: user.picture,
+      provider: user.provider,
+      maxSessions: user.maxSessions,
+    };
 
     return userDto;
   }
@@ -195,17 +197,45 @@ export class AuthService {
     this.logger.log(JSON.stringify(userInfo));
 
     const provider: AuthProvider = AuthProvider.APPLE;
+    const id = userInfo.sub;
+    const email = userInfo.email || '';
+    const name = userInfo.email?.split('@')[0] || '';
+    const picture = null;
+
+    // 사용자 정보 저장 (없으면 생성, 있으면 업데이트)
+    await this.userRepository.save({ id, email, name, picture, provider });
+
+    // 저장된 사용자 정보 조회 (maxSessions 포함)
+    const user = await this.userRepository.findOne({ where: { id } });
+    if (!user) {
+      throw new Error('Failed to save user');
+    }
 
     const userDto: UserDto = {
-      id: userInfo.sub,
-      email: userInfo.email || '',
-      name: userInfo.email?.split('@')[0] || '',
-      picture: '',
-      provider,
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      picture: user.picture,
+      provider: user.provider,
+      maxSessions: user.maxSessions,
     };
 
-    await this.userRepository.save(userDto);
-
     return userDto;
+  }
+
+  /**
+   * Access Token에서 사용자 정보 추출
+   */
+  getUserFromToken(accessToken: string): UserDto {
+    const payload = this.tokenService.verifyAccessToken(accessToken);
+    return this.tokenService.payloadToUser(payload);
+  }
+
+  /**
+   * Access Token에서 세션 ID 추출
+   */
+  getSessionIdFromToken(accessToken: string): string {
+    const payload = this.tokenService.verifyAccessToken(accessToken);
+    return payload.jti || '';
   }
 }

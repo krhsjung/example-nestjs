@@ -7,7 +7,7 @@ import { ExampleConfigService } from './example.config.service';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: `./config/.env.${process.env['NODE_ENV'] || 'local'}`,
+      envFilePath: './config/.env',
       expandVariables: true, // .env에서 ${VAR} 문법 확장
     }),
   ],

@@ -7,6 +7,24 @@
  */
 
 export const AUTH_EXCEPTIONS = {
+  // Token exceptions
+  TOKEN_NOT_FOUND: {
+    id: 'auth_token_not_found',
+    message: 'Access token not found',
+  },
+  TOKEN_INVALID: {
+    id: 'auth_token_invalid',
+    message: 'Invalid or expired token',
+  },
+  TOKEN_EXPIRED: {
+    id: 'auth_token_expired',
+    message: 'Token has expired',
+  },
+  REFRESH_TOKEN_INVALID: {
+    id: 'auth_refresh_token_invalid',
+    message: 'Invalid refresh token',
+  },
+  // Legacy session exceptions (deprecated)
   SESSION_NOT_FOUND: {
     id: 'auth_session_not_found',
     message: 'Session not found',
@@ -15,10 +33,12 @@ export const AUTH_EXCEPTIONS = {
     id: 'auth_session_invalid',
     message: 'Invalid session',
   },
+  // Credentials
   CREDENTIALS_INVALID: {
     id: 'auth_credentials_invalid',
     message: 'Invalid email or password',
   },
+  // Provider
   PROVIDER_UNSUPPORTED: {
     id: 'auth_provider_unsupported',
     message: 'Unsupported auth provider',

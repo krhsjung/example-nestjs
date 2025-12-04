@@ -8,6 +8,7 @@ import { ConfigService } from '@nestjs/config';
 import { CookieOptions } from 'express';
 import { RedisOptions } from 'ioredis';
 import { PostgresConnectionCredentialsOptions } from 'typeorm/driver/postgres/PostgresConnectionCredentialsOptions';
+import ms, { type StringValue } from 'ms';
 
 interface PostgresConfig {
   master: PostgresConnectionCredentialsOptions;
@@ -71,20 +72,11 @@ export class ExampleConfigService extends ConfigService {
     };
   }
 
-  get cookieOptions(): CookieOptions {
-    return {
-      httpOnly: !this.isDevelopment, // 개발 환경에서는 false로 설정하여 브라우저에서 확인 가능
-      secure: true, // HTTPS를 사용하므로 true
-      sameSite: 'none', // 크로스 도메인이므로 'none' 필요
-      path: '/',
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-    };
-  }
-
   private providerReddirectUri(provider: string): string {
     return `https://${this.domain}/${this.globalPrefix}/auth/${provider}/callback`;
   }
 
+  // Google OAuth 설정
   get googleClientId(): string {
     return this.get<string>('EXAMPLE_GOOGLE_CLIENT_ID') || '';
   }
@@ -105,6 +97,7 @@ export class ExampleConfigService extends ConfigService {
     };
   }
 
+  // Apple OAuth 설정
   get appleTeamId(): string {
     return this.get<string>('EXAMPLE_APPLE_TEAM_ID') || '';
   }
@@ -133,5 +126,45 @@ export class ExampleConfigService extends ConfigService {
       applePrivateKey: this.applePrivateKey,
       appleRedirectUri: this.appleRedirectUri,
     };
+  }
+
+  // JWT 설정
+  get jwtSecret(): string {
+    return this.get<string>('JWT_SECRET_KEY') || 'default-jwt-secret-key';
+  }
+
+  get jwtRefreshSecret(): string {
+    return (
+      this.get<string>('JWT_REFRESH_SECRET_KEY') ||
+      'default-jwt-refresh-secret-key'
+    );
+  }
+
+  get accessTokenCookieOptions(): CookieOptions {
+    return {
+      httpOnly: !this.isDevelopment, // 개발 환경에서는 false로 설정하여 브라우저에서 확인 가능
+      secure: true,
+      sameSite: 'none',
+      path: '/',
+      maxAge: ms(this.jwtAccessTokenExpiresIn),
+    };
+  }
+
+  get refreshTokenCookieOptions(): CookieOptions {
+    return {
+      httpOnly: !this.isDevelopment,
+      secure: true,
+      sameSite: 'none',
+      path: '/',
+      maxAge: ms(this.jwtRefreshTokenExpiresIn),
+    };
+  }
+
+  get jwtAccessTokenExpiresIn(): StringValue {
+    return this.get<StringValue>('JWT_ACCESS_TOKEN_EXPIRES_IN') || '900s';
+  }
+
+  get jwtRefreshTokenExpiresIn(): StringValue {
+    return this.get<StringValue>('JWT_REFRESH_TOKEN_EXPIRES_IN') || '7d';
   }
 }

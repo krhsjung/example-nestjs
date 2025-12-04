@@ -73,18 +73,20 @@ export class RedisModule implements OnModuleDestroy {
   static registerAsync(options: RedisModuleAsyncOptions): DynamicModule {
     const asyncProvider: Provider = {
       provide: REDIS_CLIENT,
-      useFactory: async (...args: any[]) => {
+      useFactory: async (holder: RedisClientHolder, ...args: any[]) => {
         const opts = await options.useFactory(...args);
-        return createClient(opts);
+        const client = createClient(opts);
+        holder.set(client); // 종료 훅이 client를 닫을 수 있게 연결
+        return client;
       },
-      inject: options.inject ?? [],
+      inject: [RedisClientHolder, ...(options.inject ?? [])],
     };
 
     return {
       module: RedisModule,
       global: options.isGlobal ?? true,
       imports: options.imports ?? [],
-      providers: [asyncProvider, RedisClientHolder, RedisService],
+      providers: [RedisClientHolder, asyncProvider, RedisService],
       exports: [REDIS_CLIENT, RedisService],
     };
   }

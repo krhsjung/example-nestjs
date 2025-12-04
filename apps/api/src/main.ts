@@ -13,7 +13,7 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const configService = app.get(ExampleConfigService);
 
-  // Cookie parser 미들웨어 추가
+  // Cookie parser 미들웨어 추가 (JWT 토큰 쿠키 파싱)
   app.use(cookieParser());
 
   // CORS 설정 추가

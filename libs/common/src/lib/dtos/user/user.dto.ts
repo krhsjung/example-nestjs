@@ -6,4 +6,5 @@ export class UserDto {
   readonly email!: string;
   readonly picture?: string;
   readonly provider!: AuthProvider;
+  readonly maxSessions?: number;
 }

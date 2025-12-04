@@ -30,14 +30,14 @@ export class RedisService implements OnModuleInit {
   }
 
   async get(key: string): Promise<string | null> {
-    return (this.client as any).get(key);
+    return this.client.get(key);
   }
 
   async set(key: string, value: string, ttlSec?: number) {
     if (ttlSec && ttlSec > 0) {
-      await (this.client as any).set(key, value, 'EX', ttlSec);
+      await this.client.setex(key, ttlSec, value);
     } else {
-      await (this.client as any).set(key, value);
+      await this.client.set(key, value);
     }
   }
 
@@ -45,49 +45,43 @@ export class RedisService implements OnModuleInit {
   async setJson<T>(key: string, value: T, ttlSec?: number) {
     const payload = JSON.stringify(value);
     if (ttlSec && ttlSec > 0) {
-      await (this.client as any).set(key, payload, 'EX', ttlSec);
+      await this.client.setex(key, ttlSec, payload);
     } else {
-      await (this.client as any).set(key, payload);
+      await this.client.set(key, payload);
     }
   }
 
   async getJson<T>(key: string): Promise<T | null> {
-    const v = await (this.client as any).get(key);
+    const v = await this.client.get(key);
     return v ? (JSON.parse(v) as T) : null;
   }
 
   // 기타 유틸
   del(key: string) {
-    return (this.client as any).del(key);
+    return this.client.del(key);
   }
 
   incrBy(key: string, n = 1) {
-    return (this.client as any).incrby(key, n);
+    return this.client.incrby(key, n);
   }
 
   decrBy(key: string, n = 1) {
-    return (this.client as any).decrby(key, n);
+    return this.client.decrby(key, n);
   }
 
   expire(key: string, ttlSec: number) {
-    return (this.client as any).expire(key, ttlSec);
+    return this.client.expire(key, ttlSec);
   }
 
   /**
    * 간단 분산락 (SET NX EX) – 업무에 맞게 보완해서 쓰세요.
    */
   async lock(key: string, ttlSec = 5): Promise<boolean> {
-    const ok = await (this.client as any).set(
-      `lock:${key}`,
-      '1',
-      'NX',
-      'EX',
-      ttlSec
-    );
+    const ok = await this.client.set(`lock:${key}`, '1', 'EX', ttlSec, 'NX');
     return ok === 'OK';
   }
 
   async unlock(key: string) {
-    await (this.client as any).del(`lock:${key}`);
+    await this.client.del(`lock:${key}`);
   }
 }

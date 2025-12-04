@@ -8,10 +8,17 @@ import {
   Body,
   Logger,
   HttpCode,
+  UseGuards,
 } from '@nestjs/common';
 import { Response } from 'express';
 import { AuthService } from './auth.service';
-import { ExampleConfigService, UserDto, LoginDto } from '@example/common';
+import {
+  ExampleConfigService,
+  UserDto,
+  LoginDto,
+  JwtAuthGuard,
+  CurrentUser,
+} from '@example/common';
 import { AuthCallback, AuthFlow, AuthProvider, Cookie } from '@example/utils';
 
 const CONTROLLER_PREFIX = 'auth';
@@ -28,8 +35,9 @@ export class AuthController {
   ) {}
 
   @Get('me')
-  async me(@Cookie('sessionId') sessionId: string): Promise<UserDto> {
-    return await this.authService.handleMe(sessionId);
+  @UseGuards(JwtAuthGuard)
+  async me(@CurrentUser() user: UserDto): Promise<UserDto> {
+    return user;
   }
 
   @Post('login')
@@ -39,24 +47,68 @@ export class AuthController {
   ): Promise<UserDto> {
     const methodName = 'login';
     this.logger.log(`[${methodName}] starting ${methodName}`);
-    const { sessionId, user } = await this.authService.handleLogin(loginDto);
 
-    const cookieOptions = this.configService.cookieOptions;
-    response.cookie('sessionId', sessionId, cookieOptions);
+    const tokens = await this.authService.handleLogin(loginDto);
 
-    return user;
+    // HttpOnly 쿠키에 토큰 저장
+    this.setTokenCookies(response, tokens);
+
+    // 토큰을 검증해서 user 정보 반환
+    return this.authService.getUserFromToken(tokens.accessToken);
   }
 
   @HttpCode(204)
   @Post('logout')
+  @UseGuards(JwtAuthGuard)
   async logout(
-    @Cookie('sessionId') sessionId: string,
+    @CurrentUser() user: UserDto,
+    @Cookie('accessToken') accessToken: string,
     @Res({ passthrough: true }) response: Response
   ): Promise<void> {
-    const cookieOptions = this.configService.cookieOptions;
-    response.clearCookie('sessionId', cookieOptions);
+    // Access Token에서 세션 ID 추출
+    const sessionId = this.authService.getSessionIdFromToken(accessToken);
 
-    await this.authService.handleLogout(sessionId);
+    if (sessionId) {
+      // 현재 세션만 로그아웃
+      await this.authService.handleLogout(user.id, sessionId);
+    }
+
+    // 쿠키 삭제
+    this.clearTokenCookies(response);
+  }
+
+  @HttpCode(204)
+  @Post('logout/:sessionId')
+  @UseGuards(JwtAuthGuard)
+  async logoutSession(
+    @CurrentUser() user: UserDto,
+    @Param('sessionId') sessionId: string,
+    @Cookie('accessToken') accessToken: string,
+    @Res({ passthrough: true }) response: Response
+  ): Promise<void> {
+    // 특정 세션 로그아웃
+    await this.authService.handleLogout(user.id, sessionId);
+
+    // 로그아웃한 세션이 현재 세션인 경우에만 쿠키 삭제
+    const currentSessionId = this.authService.getSessionIdFromToken(accessToken);
+
+    if (currentSessionId === sessionId) {
+      this.clearTokenCookies(response);
+    }
+  }
+
+  @HttpCode(204)
+  @Post('logout/all')
+  @UseGuards(JwtAuthGuard)
+  async logoutAll(
+    @CurrentUser() user: UserDto,
+    @Res({ passthrough: true }) response: Response
+  ): Promise<void> {
+    // 모든 세션 로그아웃
+    await this.authService.handleLogoutAll(user.id);
+
+    // 쿠키 삭제
+    this.clearTokenCookies(response);
   }
 
   @Get(':provider')
@@ -142,18 +194,49 @@ export class AuthController {
     }
   }
 
+  /**
+   * HttpOnly 쿠키에 토큰 저장
+   */
+  private setTokenCookies(response: Response, tokens: { accessToken: string; refreshToken: string }): void {
+    response.cookie(
+      'accessToken',
+      tokens.accessToken,
+      this.configService.accessTokenCookieOptions
+    );
+    response.cookie(
+      'refreshToken',
+      tokens.refreshToken,
+      this.configService.refreshTokenCookieOptions
+    );
+  }
+
+  /**
+   * 쿠키 삭제
+   */
+  private clearTokenCookies(response: Response): void {
+    response.clearCookie(
+      'accessToken',
+      this.configService.accessTokenCookieOptions
+    );
+    response.clearCookie(
+      'refreshToken',
+      this.configService.refreshTokenCookieOptions
+    );
+  }
+
   private async handleAuthCallback(
     response: Response,
     provider: AuthProvider,
     code: string,
     state: string
   ) {
-    const { sessionId, user } = await this.authService.handleAuthCallback(
-      provider,
-      code
-    );
+    const tokens = await this.authService.handleAuthCallback(provider, code);
 
-    response.cookie('sessionId', sessionId, this.configService.cookieOptions);
+    // HttpOnly 쿠키에 토큰 저장
+    this.setTokenCookies(response, tokens);
+
+    // 토큰을 검증해서 user 정보 반환
+    const user = this.authService.getUserFromToken(tokens.accessToken);
 
     this.sendResponse(response, state, 'done', user);
   }
