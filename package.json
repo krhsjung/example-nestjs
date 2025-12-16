@@ -2,7 +2,10 @@
   "name": "@example/source",
   "version": "0.0.0",
   "license": "MIT",
-  "scripts": {},
+  "scripts": {
+    "docker:build:api": "docker build -f Dockerfile.api --build-arg BUILD_ENV=${BUILD_ENV:-development} -t example-nestjs-api:${BUILD_ENV:-development} .",
+    "docker:run:api": "docker run -p 3100:3000 example-nestjs-api:${BUILD_ENV:-development}"
+  },
   "private": true,
   "dependencies": {
     "@keyv/redis": "^5.1.2",

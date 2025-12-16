@@ -24,7 +24,7 @@ async function bootstrap() {
   });
 
   app.setGlobalPrefix(configService.globalPrefix);
-  const port = process.env.EXCAMPLE_API_PORT || 3000;
+  const port = process.env.EXAMPLE_API_PORT || 3000;
   await app.listen(port);
   Logger.log(
     `🚀 Application is running on: http://localhost:${port}/${configService.globalPrefix}`

@@ -19,8 +19,8 @@ interface PostgresConfig {
 export class ExampleConfigService extends ConfigService {
   get isDevelopment(): boolean {
     return (
-      this.get<string>('NODE_ENV') === 'development' ||
-      this.get<string>('NODE_ENV') === 'local'
+      process.env['NODE_ENV'] === 'development' ||
+      process.env['NODE_ENV'] === 'local'
     );
   }
 
@@ -33,7 +33,7 @@ export class ExampleConfigService extends ConfigService {
   }
 
   get globalPrefix(): string {
-    const env = this.get<string>('NODE_ENV') || 'local';
+    const env = process.env['NODE_ENV'] || 'local';
     return `example/nestjs/${env}/api`;
   }
 
@@ -64,11 +64,11 @@ export class ExampleConfigService extends ConfigService {
 
   get redisSingleConfig(): RedisOptions {
     return {
-      username: this.get<string>('REDIS_USERNAME', 'default'),
       host: this.get<string>('REDIS_HOST', 'localhost'),
       port: this.get<number>('REDIS_PORT', 6379),
+      username: this.get<string>('REDIS_USERNAME', 'default'),
       password: this.get<string>('REDIS_PASSWORD', ''),
-      db: this.get<number>('REDIS_DB', 0),
+      db: this.get<number>('REDIS_DB_INDEX', 0),
     };
   }
 

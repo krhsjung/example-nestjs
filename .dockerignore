@@ -1,0 +1,53 @@
+# Dependencies
+node_modules
+npm-debug.log
+package-lock.json
+
+# Build output
+dist
+build
+*.js.map
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+.DS_Store
+
+# Git
+.git
+.gitignore
+
+# Environment (루트의 .env 파일만 제외, config 폴더의 .env는 포함)
+/.env
+/.env.*
+!.env.example
+
+# NX
+.nx
+
+# Testing
+coverage
+*.spec.ts
+*.test.ts
+
+# Documentation
+*.md
+!README.md
+
+# CI/CD
+.github
+.gitlab-ci.yml
+.circleci
+
+# Other
+tmp
+temp
+logs
+*.log
+docs
+
+# Kubernetes (exclude k8s files but keep project.json files)
+k8s/
+kubernetes/

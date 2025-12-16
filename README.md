@@ -1,101 +1,107 @@
-# ExampleNestjs
+# Example NestJS
 
-<a alt="Nx logo" href="https://nx.dev" target="_blank" rel="noreferrer"><img src="https://raw.githubusercontent.com/nrwl/nx/master/images/nx-logo.png" width="45"></a>
+NestJS 기반의 백엔드 API 서버 프로젝트입니다. Nx 모노레포 구조로 구성되어 있습니다.
 
-✨ Your new, shiny [Nx workspace](https://nx.dev) is ready ✨.
+## 프로젝트 구조
 
-[Learn more about this workspace setup and its capabilities](https://nx.dev/nx-api/nest?utm_source=nx_project&amp;utm_medium=readme&amp;utm_campaign=nx_projects) or run `npx nx graph` to visually explore what was created. Now, let's get you up to speed!
-
-## Run tasks
-
-To run the dev server for your app, use:
-
-```sh
-npx nx serve example-nestjs
+```
+├── apps/
+│   ├── api/          # 메인 REST API 서버
+│   └── socket/       # WebSocket 서버
+├── libs/
+│   ├── common/       # 공통 설정, 서비스
+│   └── utils/        # 유틸리티 함수, 데이터베이스 모듈
+└── config/           # 환경별 설정 파일
+    └── .env          # 로컬 전용 (development/production은 인프라 환경변수 사용)
 ```
 
-To create a production bundle:
+## 기술 스택
 
-```sh
-npx nx build example-nestjs
+- **Framework**: NestJS
+- **Build Tool**: Nx, Webpack
+- **Database**: PostgreSQL (TypeORM)
+- **Cache**: Redis (ioredis)
+- **Authentication**: JWT, OAuth (Google, Apple)
+
+## 요구 사항
+
+- Node.js 22+
+- PostgreSQL
+- Redis
+
+## 설치
+
+```bash
+npm install
 ```
 
-To see all available targets to run for a project, run:
+## 실행
 
-```sh
-npx nx show project example-nestjs
+### 로컬 개발 환경
+
+```bash
+# 개발 서버 실행 (watch 모드)
+npx nx serve api
+
+# 또는 특정 환경으로 실행
+npx nx serve api -c local
+npx nx serve api -c development
 ```
 
-These targets are either [inferred automatically](https://nx.dev/concepts/inferred-tasks?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) or defined in the `project.json` or `package.json` files.
+### 빌드
 
-[More about running tasks in the docs &raquo;](https://nx.dev/features/run-tasks?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
+```bash
+# 프로덕션 빌드 (기본값)
+npx nx build api
 
-## Add new projects
+# 환경별 빌드
+npx nx build api -c local
+npx nx build api -c development
+npx nx build api -c production
+```
 
-While you could add new projects to your workspace manually, you might want to leverage [Nx plugins](https://nx.dev/concepts/nx-plugins?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) and their [code generation](https://nx.dev/features/generate-code?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) feature.
+### Docker
 
-Use the plugin's generator to create new projects.
+```bash
+# 프로덕션 이미지 빌드 (기본값)
+docker build -t example-api .
 
-To generate a new application, use:
+# 개발 환경 이미지 빌드
+docker build --build-arg BUILD_ENV=development -t example-api:development .
 
-```sh
+# 컨테이너 실행
+docker run -p 3000:3000 example-api
+```
+
+## 환경 변수
+
+주요 환경 변수는 `config/` 디렉토리의 `.env` 파일에서 관리됩니다.
+
+| 변수명                  | 설명              | 기본값      |
+| ----------------------- | ----------------- | ----------- |
+| `NODE_ENV`              | 실행 환경         | `local`     |
+| `POSTGRES_PRIMARY_HOST` | PostgreSQL 호스트 | `localhost` |
+| `REDIS_HOST`            | Redis 호스트      | `localhost` |
+| `REDIS_PORT`            | Redis 포트        | `6379`      |
+| `JWT_SECRET_KEY`        | JWT 시크릿 키     | -           |
+
+## Nx 명령어
+
+```bash
+# 프로젝트 그래프 확인
+npx nx graph
+
+# 프로젝트 정보 확인
+npx nx show project api
+
+# 새 라이브러리 생성
+npx nx g @nx/node:lib mylib
+
+# 새 애플리케이션 생성
 npx nx g @nx/nest:app demo
 ```
 
-To generate a new library, use:
+## 참고 링크
 
-```sh
-npx nx g @nx/node:lib mylib
-```
-
-You can use `npx nx list` to get a list of installed plugins. Then, run `npx nx list <plugin-name>` to learn about more specific capabilities of a particular plugin. Alternatively, [install Nx Console](https://nx.dev/getting-started/editor-setup?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) to browse plugins and generators in your IDE.
-
-[Learn more about Nx plugins &raquo;](https://nx.dev/concepts/nx-plugins?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) | [Browse the plugin registry &raquo;](https://nx.dev/plugin-registry?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-
-## Set up CI!
-
-### Step 1
-
-To connect to Nx Cloud, run the following command:
-
-```sh
-npx nx connect
-```
-
-Connecting to Nx Cloud ensures a [fast and scalable CI](https://nx.dev/ci/intro/why-nx-cloud?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) pipeline. It includes features such as:
-
-- [Remote caching](https://nx.dev/ci/features/remote-cache?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-- [Task distribution across multiple machines](https://nx.dev/ci/features/distribute-task-execution?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-- [Automated e2e test splitting](https://nx.dev/ci/features/split-e2e-tasks?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-- [Task flakiness detection and rerunning](https://nx.dev/ci/features/flaky-tasks?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-
-### Step 2
-
-Use the following command to configure a CI workflow for your workspace:
-
-```sh
-npx nx g ci-workflow
-```
-
-[Learn more about Nx on CI](https://nx.dev/ci/intro/ci-with-nx#ready-get-started-with-your-provider?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-
-## Install Nx Console
-
-Nx Console is an editor extension that enriches your developer experience. It lets you run tasks, generate code, and improves code autocompletion in your IDE. It is available for VSCode and IntelliJ.
-
-[Install Nx Console &raquo;](https://nx.dev/getting-started/editor-setup?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-
-## Useful links
-
-Learn more:
-
-- [Learn more about this workspace setup](https://nx.dev/nx-api/nest?utm_source=nx_project&amp;utm_medium=readme&amp;utm_campaign=nx_projects)
-- [Learn about Nx on CI](https://nx.dev/ci/intro/ci-with-nx?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-- [Releasing Packages with Nx release](https://nx.dev/features/manage-releases?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-- [What are Nx plugins?](https://nx.dev/concepts/nx-plugins?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-
-And join the Nx community:
-- [Discord](https://go.nx.dev/community)
-- [Follow us on X](https://twitter.com/nxdevtools) or [LinkedIn](https://www.linkedin.com/company/nrwl)
-- [Our Youtube channel](https://www.youtube.com/@nxdevtools)
-- [Our blog](https://nx.dev/blog?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
+- [Nx Documentation](https://nx.dev)
+- [NestJS Documentation](https://docs.nestjs.com)

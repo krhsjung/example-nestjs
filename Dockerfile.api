@@ -1,0 +1,94 @@
+# ===================================
+# Build Stage (멀티 스테이지 빌드 - 1단계)
+# ===================================
+# node:22-alpine: Node.js 22 버전의 경량 Alpine Linux 이미지
+# AS builder: 이 스테이지를 'builder'라는 이름으로 지정 (나중에 참조용)
+FROM node:22-alpine AS builder
+
+# ARG: 빌드 시점에만 사용되는 변수 (런타임에는 존재하지 않음)
+# docker build --build-arg BUILD_ENV=development 으로 값 전달 가능
+# 기본값은 production
+ARG BUILD_ENV=production
+
+# WORKDIR: 컨테이너 내 작업 디렉토리 설정
+# 이후 모든 명령어는 /app 디렉토리에서 실행됨
+# 디렉토리가 없으면 자동 생성
+WORKDIR /app
+
+# COPY: 호스트의 파일을 컨테이너로 복사
+# package*.json: package.json과 package-lock.json 모두 복사
+# ./: 현재 WORKDIR(/app)로 복사
+# 의존성 파일만 먼저 복사하는 이유: Docker 레이어 캐싱 활용
+# (소스 코드 변경 시에도 npm install 레이어는 캐시 재사용 가능)
+COPY package*.json ./
+
+# RUN: 컨테이너 빌드 시 실행할 명령어
+# npm install: devDependencies 포함 전체 의존성 설치
+# (빌드에 필요한 @nx, typescript 등이 devDependencies에 있음)
+RUN npm install
+
+# 나머지 소스 코드와 설정 파일 복사
+# .dockerignore 파일에 정의된 항목은 제외됨
+COPY . .
+
+# Nx를 사용해 애플리케이션 빌드
+# -c ${BUILD_ENV}: configuration 옵션 (development/production)
+# 빌드 결과물은 dist/apps/api 디렉토리에 생성됨
+RUN npx nx build api -c ${BUILD_ENV}
+
+# ===================================
+# Production Stage (멀티 스테이지 빌드 - 2단계)
+# ===================================
+# 새로운 깨끗한 이미지에서 시작
+# 빌드 도구, 소스 코드 등은 포함되지 않아 이미지 크기 최소화
+FROM node:22-alpine AS production
+
+WORKDIR /app
+
+# --from=builder: builder 스테이지에서 파일 복사
+# 빌드된 결과물만 가져옴 (node_modules, 소스 코드 제외)
+COPY --from=builder /app/dist/apps/api ./
+
+# ARG를 production 스테이지에서도 사용하려면 다시 선언 필요
+ARG BUILD_ENV=production
+
+# 환경 변수 설정 파일 복사
+# 공통 설정(.env)과 환경별 설정(.env.${BUILD_ENV})만 복사
+COPY --from=builder /app/config/.env ./config/.env
+# COPY --from=builder /app/config/.env.${BUILD_ENV} ./config/.env.${BUILD_ENV}
+
+# npm ci: package-lock.json 기반으로 정확한 버전 설치 (CI/CD에 적합)
+# --omit=dev: devDependencies 제외 (프로덕션 의존성만 설치)
+# npm cache clean --force: npm 캐시 삭제로 이미지 크기 감소
+RUN npm ci --omit=dev && npm cache clean --force
+
+# 보안을 위한 비루트 사용자 생성
+# addgroup: nodejs 그룹 생성 (GID 1001)
+# adduser: nestjs 사용자 생성 (UID 1001, nodejs 그룹 소속)
+# chown: /app 디렉토리 소유권을 nestjs:nodejs로 변경
+# -S: 시스템 사용자/그룹 (로그인 불가)
+RUN addgroup -g 1001 -S nodejs && \
+    adduser -S nestjs -u 1001 && \
+    chown -R nestjs:nodejs /app
+
+# USER: 이후 명령어를 nestjs 사용자로 실행
+# root 권한으로 실행하지 않아 보안 강화
+USER nestjs
+
+# EXPOSE: 컨테이너가 3000번 포트를 사용한다는 문서화 (메타데이터)
+# 실제 포트 오픈은 docker run -p 옵션으로 해야 함
+EXPOSE 3000
+
+# HEALTHCHECK: 컨테이너 상태 확인 설정
+# --interval=30s: 30초마다 헬스체크 실행
+# --timeout=3s: 응답 대기 시간 3초
+# --start-period=40s: 컨테이너 시작 후 40초간 실패해도 unhealthy로 판정하지 않음
+# --retries=3: 3번 연속 실패 시 unhealthy 상태로 변경
+# CMD: /health 엔드포인트에 HTTP 요청, 200 응답이면 healthy
+HEALTHCHECK --interval=30s --timeout=3s --start-period=40s --retries=3 \
+  CMD node -e "require('http').get('http://localhost:3000/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"
+
+# CMD: 컨테이너 시작 시 실행할 기본 명령어
+# exec form (배열 형태): 셸을 거치지 않고 직접 실행 (시그널 처리에 유리)
+# main.js: Nx 빌드 결과물의 엔트리 포인트
+CMD ["node", "main.js"]

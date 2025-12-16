@@ -1,6 +1,7 @@
 import { Module, OnModuleInit } from '@nestjs/common';
 import { UserModule } from './user/user.module';
 import { AuthModule } from './auth/auth.module';
+import { HealthModule } from './health/health.module';
 import {
   ExampleConfigModule,
   ExampleConfigService,
@@ -17,6 +18,7 @@ import { DataSource } from 'typeorm';
     ExampleConfigModule,
     UserModule,
     AuthModule,
+    HealthModule,
     PostgresModule.forRootAsync(),
     RedisModule.registerAsync({
       isGlobal: true,
