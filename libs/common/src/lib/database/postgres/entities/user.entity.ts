@@ -1,3 +1,4 @@
+import { UserDto } from '@example/common';
 import { AuthProvider } from '@example/utils';
 import {
   BeforeInsert,
@@ -59,5 +60,16 @@ export class User {
     if (!this.id) {
       this.id = uuidv4();
     }
+  }
+
+  toDto(): UserDto {
+    return {
+      id: this.id,
+      name: this.name,
+      email: this.email,
+      picture: this.picture,
+      provider: this.provider,
+      maxSessions: this.maxSessions,
+    };
   }
 }

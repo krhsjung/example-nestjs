@@ -67,14 +67,7 @@ export class AuthService {
       throwException(NotFoundException, AUTH_EXCEPTIONS.CREDENTIALS_INVALID);
     }
 
-    const userDto: UserDto = {
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      picture: user.picture,
-      provider: user.provider,
-      maxSessions: user.maxSessions,
-    };
+    const userDto: UserDto = user.toDto();
 
     // JWT 토큰 생성 및 Refresh Token을 Redis에 저장
     const tokens = await this.tokenSessionService.createSession(userDto);
@@ -177,16 +170,7 @@ export class AuthService {
       throw new Error('Failed to save user');
     }
 
-    const userDto: UserDto = {
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      picture: user.picture,
-      provider: user.provider,
-      maxSessions: user.maxSessions,
-    };
-
-    return userDto;
+    return user.toDto();
   }
 
   private async handleAppleCallback(code: string): Promise<UserDto> {
@@ -211,16 +195,7 @@ export class AuthService {
       throw new Error('Failed to save user');
     }
 
-    const userDto: UserDto = {
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      picture: user.picture,
-      provider: user.provider,
-      maxSessions: user.maxSessions,
-    };
-
-    return userDto;
+    return user.toDto();
   }
 
   /**

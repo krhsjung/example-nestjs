@@ -18,7 +18,7 @@ export class UserService {
     @InjectRepository(User) private readonly repo: Repository<User>
   ) {}
 
-  async create(dto: UserDto): Promise<User> {
+  async create(dto: UserDto): Promise<UserDto> {
     const exists = await this.repo.findOne({
       where: [{ id: dto.id }, { email: dto.email }],
     });
@@ -37,7 +37,8 @@ export class UserService {
     }
 
     const newUser = this.repo.create(dto);
-    return this.repo.save(newUser);
+    const savedUser = await this.repo.save(newUser);
+    return savedUser.toDto();
   }
 
   async fineOne(id: string): Promise<User> {
