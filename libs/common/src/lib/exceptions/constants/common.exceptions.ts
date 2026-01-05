@@ -8,19 +8,19 @@
 
 export const COMMON_EXCEPTIONS = {
   INTERNAL_SERVER_ERROR: {
-    id: 'common_internal_server_error',
+    id: 'server_common_internal_server_error',
     message: 'Internal server error',
   },
   BAD_REQUEST: {
-    id: 'common_bad_request',
+    id: 'server_common_bad_request',
     message: 'Bad request',
   },
   FORBIDDEN: {
-    id: 'common_forbidden',
+    id: 'server_common_forbidden',
     message: 'Forbidden',
   },
   NOT_FOUND: {
-    id: 'common_not_found',
+    id: 'server_common_not_found',
     message: 'Resource not found',
   },
 } as const;

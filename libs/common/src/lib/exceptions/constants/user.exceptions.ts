@@ -8,11 +8,11 @@
 
 export const USER_EXCEPTIONS = {
   NOT_FOUND: {
-    id: 'user_not_found',
+    id: 'server_user_not_found',
     message: 'User with id={id} not found',
   },
   ALREADY_EXISTS: {
-    id: 'user_already_exists',
+    id: 'server_user_already_exists',
     message: 'User with {fields} already exists',
   },
 } as const;
