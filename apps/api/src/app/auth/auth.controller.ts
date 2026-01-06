@@ -90,7 +90,8 @@ export class AuthController {
     await this.authService.handleLogout(user.id, sessionId);
 
     // 로그아웃한 세션이 현재 세션인 경우에만 쿠키 삭제
-    const currentSessionId = this.authService.getSessionIdFromToken(accessToken);
+    const currentSessionId =
+      this.authService.getSessionIdFromToken(accessToken);
 
     if (currentSessionId === sessionId) {
       this.clearTokenCookies(response);
@@ -116,9 +117,12 @@ export class AuthController {
     @Res() response: Response,
     @Param('provider') provider: AuthProvider,
     @Query('flow') flow: AuthFlow = DEFAULT_AUTH_FLOW,
-    @Query('origin') origin?: string
+    @Query('origin') origin?: string,
+    @Query('prompt') prompt?: string
   ): Promise<void> {
-    response.redirect(this.authService.getAuthUrl(provider, flow, origin));
+    response.redirect(
+      this.authService.getAuthUrl(provider, flow, origin, prompt)
+    );
   }
 
   @Get('google/callback')
@@ -197,7 +201,10 @@ export class AuthController {
   /**
    * HttpOnly 쿠키에 토큰 저장
    */
-  private setTokenCookies(response: Response, tokens: { accessToken: string; refreshToken: string }): void {
+  private setTokenCookies(
+    response: Response,
+    tokens: { accessToken: string; refreshToken: string }
+  ): void {
     response.cookie(
       'accessToken',
       tokens.accessToken,

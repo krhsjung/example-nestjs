@@ -49,7 +49,8 @@ export class GoogleOAuthClient {
 
   generateAuthUrl(
     state: string = Math.random().toString(36).substring(2, 15),
-    oauthMethod: OAuthMethod = OAuthMethod.LIBRARY
+    oauthMethod: OAuthMethod = OAuthMethod.LIBRARY,
+    prompt?: string
   ): string {
     const scopes = ['email', 'profile'];
     const option: GoogleAuthUrlOpts = {
@@ -57,7 +58,7 @@ export class GoogleOAuthClient {
       state: state,
       response_type: 'code',
       access_type: 'offline',
-      // prompt: this.configService.isDevelopment ? 'consent' : 'none',
+      prompt,
     };
 
     const authUrl =

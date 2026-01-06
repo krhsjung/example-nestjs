@@ -99,7 +99,12 @@ export class AuthService {
     await this.tokenSessionService.removeAllSessions(userId);
   }
 
-  getAuthUrl(provider: AuthProvider, flow: AuthFlow, origin?: string): string {
+  getAuthUrl(
+    provider: AuthProvider,
+    flow: AuthFlow,
+    origin?: string,
+    prompt?: string
+  ): string {
     const methodName = 'getAuthUrl';
 
     this.logger.log(
@@ -109,7 +114,8 @@ export class AuthService {
     if (provider === AuthProvider.GOOGLE) {
       return this.googleOAuthClient.generateAuthUrl(
         JSON.stringify({ flow, origin }),
-        OAuthMethod.DIRECT
+        OAuthMethod.DIRECT,
+        prompt
       );
     } else if (provider === AuthProvider.APPLE) {
       return this.appleOAuthClient.generateAuthUrl(
