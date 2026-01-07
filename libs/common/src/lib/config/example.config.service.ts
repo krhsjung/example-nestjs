@@ -167,4 +167,13 @@ export class ExampleConfigService extends ConfigService {
   get jwtRefreshTokenExpiresIn(): StringValue {
     return this.get<StringValue>('JWT_REFRESH_TOKEN_EXPIRES_IN') || '7d';
   }
+
+  // Mobile App URL Scheme
+  get appUrlScheme(): string {
+    return this.get<string>('APP_URL_SCHEME') || 'example';
+  }
+
+  get appOAuthCallbackUrl(): string {
+    return `${this.appUrlScheme}://oauth/callback`;
+  }
 }

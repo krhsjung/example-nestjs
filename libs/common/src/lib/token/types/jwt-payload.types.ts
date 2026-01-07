@@ -10,6 +10,8 @@ export interface JwtPayload extends BaseJwtPayload {
   sub: string; // userId
   email: string;
   name: string;
+  picture?: string;
   provider: AuthProvider;
+  maxSessions?: number;
   jti?: string; // JWT ID (세션 ID)
 }

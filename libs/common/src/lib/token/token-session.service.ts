@@ -19,6 +19,8 @@ export class TokenSessionService {
   });
   private readonly SESSION_PREFIX = 'user_sessions:';
   private readonly REFRESH_TOKEN_PREFIX = 'refresh:';
+  private readonly AUTH_CODE_PREFIX = 'auth_code:';
+  private readonly AUTH_CODE_TTL = 10; // 10초
 
   constructor(
     private readonly redisService: RedisService,
@@ -238,6 +240,43 @@ export class TokenSessionService {
   ): Promise<void> {
     const key = `${this.REFRESH_TOKEN_PREFIX}${userId}:${sessionId}`;
     await this.redisService.del(key);
+  }
+
+  /**
+   * 모바일 OAuth용 일회용 인증 코드 생성
+   * UserDto를 Redis에 저장하고 authCode 반환
+   */
+  async createAuthCode(user: UserDto): Promise<string> {
+    const authCode = randomUUID();
+    const key = `${this.AUTH_CODE_PREFIX}${authCode}`;
+
+    await this.redisService.set(key, JSON.stringify(user), this.AUTH_CODE_TTL);
+
+    this.logger.log(
+      `Created auth code: ${authCode} for user: ${user.email} (TTL: ${this.AUTH_CODE_TTL}s)`
+    );
+    return authCode;
+  }
+
+  /**
+   * 인증 코드로 세션 생성 (일회용 - 조회 후 삭제)
+   */
+  async exchangeAuthCode(authCode: string): Promise<TokenPair | null> {
+    const key = `${this.AUTH_CODE_PREFIX}${authCode}`;
+    const data = await this.redisService.get(key);
+
+    if (!data) {
+      this.logger.warn(`Auth code not found or expired: ${authCode}`);
+      return null;
+    }
+
+    // 일회용이므로 즉시 삭제
+    await this.redisService.del(key);
+
+    const user = JSON.parse(data) as UserDto;
+    this.logger.log(`Exchanged auth code: ${authCode} for user: ${user.email}`);
+
+    return this.createSession(user);
   }
 
   /**

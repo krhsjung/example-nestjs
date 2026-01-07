@@ -12,6 +12,7 @@ import { TokenPair } from '@example/utils';
 import {
   AppleOAuthClient,
   AppleUserInformation,
+  AppleNotificationEvents,
   AuthFlow,
   AuthProvider,
   GoogleOAuthClient,
@@ -19,7 +20,12 @@ import {
   OAuthMethod,
 } from '@example/utils';
 import { HttpService } from '@nestjs/axios';
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
@@ -125,13 +131,16 @@ export class AuthService {
     throwException(NotFoundException, AUTH_EXCEPTIONS.PROVIDER_UNSUPPORTED);
   }
 
-  async handleAuthCallback(
+  /**
+   * OAuth provider에서 사용자 정보 조회
+   */
+  async getUserFromOAuthProvider(
     provider: AuthProvider,
     code: string
-  ): Promise<TokenPair> {
-    const methodName = 'handleAuthCallback';
+  ): Promise<UserDto> {
+    const methodName = 'getUserFromOAuthProvider';
 
-    this.logger.log(`[${methodName}] Handle Auth callback code: ${code}`);
+    this.logger.log(`[${methodName}] Fetching user info from ${provider}`);
 
     const handlers = {
       [AuthProvider.GOOGLE]: () => this.handleGoogleCallback(code),
@@ -143,16 +152,7 @@ export class AuthService {
       throwException(NotFoundException, AUTH_EXCEPTIONS.PROVIDER_UNSUPPORTED);
     }
 
-    const user = await handler();
-
-    // JWT 토큰 생성 및 Refresh Token을 Redis에 저장
-    const tokens = await this.tokenSessionService.createSession(user);
-
-    this.logger.log(
-      `[${methodName}] OAuth callback successful for user: ${user.email}`
-    );
-
-    return tokens;
+    return handler();
   }
 
   private async handleGoogleCallback(code: string): Promise<UserDto> {
@@ -167,14 +167,17 @@ export class AuthService {
     const provider: AuthProvider = AuthProvider.GOOGLE;
     const { id, email, name, picture } = userInfo;
 
-    // 사용자 정보 저장 (없으면 생성, 있으면 업데이트)
-    await this.userRepository.save({ id, email, name, picture, provider });
+    const existingUser = await this.userRepository.findOne({ where: { id } });
 
-    // 저장된 사용자 정보 조회 (maxSessions 포함)
-    const user = await this.userRepository.findOne({ where: { id } });
-    if (!user) {
-      throw new Error('Failed to save user');
-    }
+    const user = Object.assign(existingUser ?? new User(), {
+      id,
+      email,
+      name,
+      picture,
+      provider,
+    });
+
+    await this.userRepository.save(user);
 
     return user.toDto();
   }
@@ -218,5 +221,30 @@ export class AuthService {
   getSessionIdFromToken(accessToken: string): string {
     const payload = this.tokenService.verifyAccessToken(accessToken);
     return payload.jti || '';
+  }
+
+  /**
+   * 사용자를 위한 세션 생성
+   */
+  async createSessionForUser(user: UserDto): Promise<TokenPair> {
+    return this.tokenSessionService.createSession(user);
+  }
+
+  /**
+   * 모바일 OAuth용 일회용 인증 코드 생성
+   */
+  async createAuthCode(user: UserDto): Promise<string> {
+    return this.tokenSessionService.createAuthCode(user);
+  }
+
+  /**
+   * 인증 코드로 토큰 교환
+   */
+  async exchangeAuthCode(code: string): Promise<TokenPair> {
+    const tokens = await this.tokenSessionService.exchangeAuthCode(code);
+    if (!tokens) {
+      throwException(UnauthorizedException, AUTH_EXCEPTIONS.AUTH_CODE_INVALID);
+    }
+    return tokens;
   }
 }

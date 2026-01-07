@@ -48,7 +48,9 @@ export class TokenService {
       sub: user.id!,
       email: user.email,
       name: user.name,
+      picture: user.picture,
       provider: user.provider,
+      maxSessions: user.maxSessions,
       jti: sessionId,
     };
   }
@@ -61,8 +63,9 @@ export class TokenService {
       id: payload.sub,
       email: payload.email,
       name: payload.name,
-      picture: '', // JWT에는 picture를 포함하지 않음 (크기 최소화)
+      picture: payload.picture,
       provider: payload.provider,
+      maxSessions: payload.maxSessions,
     };
   }
 }

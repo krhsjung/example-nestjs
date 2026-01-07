@@ -43,6 +43,11 @@ export const AUTH_EXCEPTIONS = {
     id: 'server_auth_provider_unsupported',
     message: 'Unsupported auth provider',
   },
+  // Auth code
+  AUTH_CODE_INVALID: {
+    id: 'server_auth_code_invalid',
+    message: 'Invalid or expired auth code',
+  },
 } as const;
 
 export type AuthExceptionKey = keyof typeof AUTH_EXCEPTIONS;

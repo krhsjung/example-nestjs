@@ -49,12 +49,20 @@ export class AuthController {
     this.logger.log(`[${methodName}] starting ${methodName}`);
 
     const tokens = await this.authService.handleLogin(loginDto);
+    return this.setTokensAndReturnUser(response, tokens);
+  }
 
-    // HttpOnly 쿠키에 토큰 저장
-    this.setTokenCookies(response, tokens);
-
-    // 토큰을 검증해서 user 정보 반환
-    return this.authService.getUserFromToken(tokens.accessToken);
+  /**
+   * 모바일 OAuth용 인증 코드 교환
+   * 일회용 authCode로 토큰 발급 및 쿠키 저장
+   */
+  @Post('exchange')
+  async exchange(
+    @Body('code') code: string,
+    @Res({ passthrough: true }) response: Response
+  ): Promise<UserDto> {
+    const tokens = await this.authService.exchangeAuthCode(code);
+    return this.setTokensAndReturnUser(response, tokens);
   }
 
   @HttpCode(204)
@@ -177,7 +185,8 @@ export class AuthController {
     response: Response,
     state: string,
     type: RedirectResponse,
-    data?: UserDto | string
+    data?: UserDto | string,
+    authCode?: string
   ): void {
     const { flow, origin } = this.parseState(state);
     const isDone = type === 'done';
@@ -186,7 +195,11 @@ export class AuthController {
       isDone ? '/auth/success' : '/auth/error'
     );
 
-    if (flow === AuthFlow.POPUP) {
+    if (flow === AuthFlow.IOS || flow === AuthFlow.ANDROID) {
+      response
+        .type('html')
+        .send(this.mobileRedirectHtml(isDone, authCode, data));
+    } else if (flow === AuthFlow.POPUP) {
       const payload = {
         type: `oauth:${type}`,
         ok: isDone,
@@ -196,6 +209,17 @@ export class AuthController {
     } else {
       response.redirect(targetOrigin);
     }
+  }
+
+  /**
+   * HttpOnly 쿠키에 토큰 저장 후 사용자 정보 반환
+   */
+  private setTokensAndReturnUser(
+    response: Response,
+    tokens: { accessToken: string; refreshToken: string }
+  ): UserDto {
+    this.setTokenCookies(response, tokens);
+    return this.authService.getUserFromToken(tokens.accessToken);
   }
 
   /**
@@ -237,15 +261,25 @@ export class AuthController {
     code: string,
     state: string
   ) {
-    const tokens = await this.authService.handleAuthCallback(provider, code);
+    const { flow } = this.parseState(state);
+    const isMobileFlow = flow === AuthFlow.IOS || flow === AuthFlow.ANDROID;
 
-    // HttpOnly 쿠키에 토큰 저장
-    this.setTokenCookies(response, tokens);
+    // 공통: OAuth provider에서 사용자 정보 조회
+    const user = await this.authService.getUserFromOAuthProvider(
+      provider,
+      code
+    );
 
-    // 토큰을 검증해서 user 정보 반환
-    const user = this.authService.getUserFromToken(tokens.accessToken);
-
-    this.sendResponse(response, state, 'done', user);
+    if (isMobileFlow) {
+      // 모바일: authCode 생성하여 전달 (세션은 exchange 시점에 생성)
+      const authCode = await this.authService.createAuthCode(user);
+      this.sendResponse(response, state, 'done', undefined, authCode);
+    } else {
+      // 웹: 세션 생성 후 쿠키에 토큰 저장
+      const tokens = await this.authService.createSessionForUser(user);
+      this.setTokenCookies(response, tokens);
+      this.sendResponse(response, state, 'done', user);
+    }
   }
 
   private popupRedirectHtml(targetOrigin: string, payload: any): string {
@@ -264,6 +298,31 @@ export class AuthController {
           console.error('Popup error:', e);
         }
       })();
+      </script>
+    `;
+  }
+
+  private mobileRedirectHtml(
+    success: boolean,
+    authCode?: string,
+    error?: UserDto | string
+  ): string {
+    const baseUrl = this.configService.appOAuthCallbackUrl;
+    const params = new URLSearchParams();
+    params.set('success', String(success));
+
+    if (success && authCode) {
+      params.set('code', authCode);
+    } else if (!success && error) {
+      params.set('error', String(error));
+    }
+
+    const redirectUrl = `${baseUrl}?${params.toString()}`;
+
+    return `
+      <!doctype html><meta charset="utf-8">
+      <script>
+        window.location.href = "${redirectUrl}";
       </script>
     `;
   }
