@@ -25,6 +25,19 @@ const CONTROLLER_PREFIX = 'auth';
 const DEFAULT_AUTH_FLOW = AuthFlow.REDIRECT;
 type RedirectResponse = 'done' | 'error';
 
+/**
+ * 인증 관련 API를 처리하는 컨트롤러
+ *
+ * 지원하는 인증 방식:
+ * - 이메일/비밀번호 로그인
+ * - OAuth 로그인 (Google, Apple)
+ * - Apple 네이티브 SDK 로그인 (iOS/Android)
+ *
+ * 토큰 관리:
+ * - JWT 기반 인증 (accessToken, refreshToken)
+ * - HttpOnly 쿠키를 통한 토큰 저장
+ * - 다중 세션 지원 및 개별/전체 로그아웃
+ */
 @Controller(CONTROLLER_PREFIX)
 export class AuthController {
   private logger = new Logger(AuthController.name, { timestamp: true });
@@ -34,12 +47,21 @@ export class AuthController {
     private readonly configService: ExampleConfigService
   ) {}
 
+  /**
+   * 현재 로그인된 사용자 정보 조회
+   * @returns 현재 사용자 정보
+   */
   @Get('me')
   @UseGuards(JwtAuthGuard)
   async me(@CurrentUser() user: UserDto): Promise<UserDto> {
     return user;
   }
 
+  /**
+   * 이메일/비밀번호 로그인
+   * @param loginDto - 로그인 정보 (email, password)
+   * @returns 사용자 정보 (토큰은 쿠키로 설정)
+   */
   @Post('login')
   async login(
     @Body() loginDto: LoginDto,
@@ -55,6 +77,8 @@ export class AuthController {
   /**
    * 모바일 OAuth용 인증 코드 교환
    * 일회용 authCode로 토큰 발급 및 쿠키 저장
+   * @param code - 일회용 인증 코드
+   * @returns 사용자 정보 (토큰은 쿠키로 설정)
    */
   @Post('exchange')
   async exchange(
@@ -65,6 +89,10 @@ export class AuthController {
     return this.setTokensAndReturnUser(response, tokens);
   }
 
+  /**
+   * 현재 세션 로그아웃
+   * Access Token에서 세션 ID를 추출하여 해당 세션만 종료
+   */
   @HttpCode(204)
   @Post('logout')
   @UseGuards(JwtAuthGuard)
@@ -85,6 +113,11 @@ export class AuthController {
     this.clearTokenCookies(response);
   }
 
+  /**
+   * 특정 세션 로그아웃
+   * 다른 기기에서 로그인된 세션을 원격으로 종료할 때 사용
+   * @param sessionId - 로그아웃할 세션 ID
+   */
   @HttpCode(204)
   @Post('logout/:sessionId')
   @UseGuards(JwtAuthGuard)
@@ -106,6 +139,10 @@ export class AuthController {
     }
   }
 
+  /**
+   * 모든 세션 로그아웃
+   * 모든 기기에서 로그아웃 처리
+   */
   @HttpCode(204)
   @Post('logout/all')
   @UseGuards(JwtAuthGuard)
@@ -120,6 +157,13 @@ export class AuthController {
     this.clearTokenCookies(response);
   }
 
+  /**
+   * OAuth 로그인 URL로 리다이렉트
+   * @param provider - OAuth 제공자 (google, apple)
+   * @param flow - 인증 플로우 타입 (redirect, popup, ios, android)
+   * @param origin - 인증 완료 후 리다이렉트할 URL
+   * @param prompt - Google OAuth 전용: 동의 화면 표시 옵션 (consent, select_account 등)
+   */
   @Get(':provider')
   async authUrl(
     @Res() response: Response,
@@ -133,6 +177,34 @@ export class AuthController {
     );
   }
 
+  /**
+   * Apple 네이티브 SDK 로그인 (iOS/Android)
+   * 클라이언트에서 Apple SDK로 받은 identityToken을 검증하고 로그인 처리
+   * @param identityToken - Apple SDK에서 발급한 JWT
+   * @param user - Apple 사용자 ID
+   * @param email - 사용자 이메일 (최초 로그인 시에만 제공)
+   * @param fullName - 사용자 이름 (최초 로그인 시에만 제공)
+   * @returns 사용자 정보 (토큰은 쿠키로 설정)
+   */
+  @Post('apple/native')
+  async appleNativeLogin(
+    @Body('identityToken') identityToken: string,
+    @Body('user') user: string,
+    @Body('email') email?: string,
+    @Body('fullName') fullName?: { givenName?: string; familyName?: string },
+    @Res({ passthrough: true }) response?: Response
+  ): Promise<UserDto> {
+    const tokens = await this.authService.handleAppleNativeLogin(
+      identityToken,
+      { user, email, fullName }
+    );
+    return this.setTokensAndReturnUser(response, tokens);
+  }
+
+  /**
+   * Google OAuth 콜백 처리
+   * Google에서 authorization code를 받아 토큰 교환 및 사용자 정보 조회
+   */
   @Get('google/callback')
   async authGooleCallback(
     @Query() query: AuthCallback,
@@ -152,6 +224,11 @@ export class AuthController {
     );
   }
 
+  /**
+   * Apple OAuth 콜백 처리 (웹 플로우)
+   * Apple에서 form_post 방식으로 authorization code를 받음
+   * 최초 로그인 시 body.user에 사용자 이름/이메일 정보 포함
+   */
   @Post('apple/callback')
   async authAppleCallback(
     @Body() body: AuthCallback,
@@ -167,20 +244,37 @@ export class AuthController {
       response,
       AuthProvider.APPLE,
       body.code,
-      body.state
+      body.state,
+      body.user
     );
   }
 
+  /**
+   * OAuth state 파라미터 파싱
+   * @param state - JSON 문자열로 인코딩된 state (flow, origin 포함)
+   */
   private parseState(state: string): { flow: AuthFlow; origin: string | null } {
     return state
       ? (JSON.parse(state) as { flow: AuthFlow; origin: string })
       : { flow: DEFAULT_AUTH_FLOW as AuthFlow, origin: null };
   }
 
+  /**
+   * 리다이렉트 대상 URL 결정
+   * @param origin - 클라이언트가 지정한 리다이렉트 URL
+   * @param defaultPath - origin이 없을 때 사용할 기본 경로
+   */
   private getTargetOrigin(origin: string | null, defaultPath: string): string {
     return origin || this.configService.globalPrefix + defaultPath;
   }
 
+  /**
+   * OAuth 결과 응답 전송
+   * flow 타입에 따라 다른 방식으로 응답:
+   * - IOS/ANDROID: 앱 딥링크로 리다이렉트
+   * - POPUP: postMessage로 부모 창에 결과 전달
+   * - REDIRECT: 지정된 URL로 리다이렉트
+   */
   private sendResponse(
     response: Response,
     state: string,
@@ -224,6 +318,7 @@ export class AuthController {
 
   /**
    * HttpOnly 쿠키에 토큰 저장
+   * XSS 공격 방지를 위해 HttpOnly 플래그 사용
    */
   private setTokenCookies(
     response: Response,
@@ -242,7 +337,8 @@ export class AuthController {
   }
 
   /**
-   * 쿠키 삭제
+   * 인증 쿠키 삭제
+   * 로그아웃 시 호출하여 클라이언트의 토큰 제거
    */
   private clearTokenCookies(response: Response): void {
     response.clearCookie(
@@ -255,11 +351,23 @@ export class AuthController {
     );
   }
 
+  /**
+   * OAuth 콜백 공통 처리
+   * 1. OAuth provider에서 사용자 정보 조회
+   * 2. 모바일: authCode 생성하여 앱으로 전달
+   * 3. 웹: 세션 생성 후 쿠키에 토큰 저장
+   *
+   * @param provider - OAuth 제공자
+   * @param code - authorization code
+   * @param state - 상태 정보 (flow, origin)
+   * @param appleUserData - Apple 최초 로그인 시 사용자 정보 (JSON string)
+   */
   private async handleAuthCallback(
     response: Response,
     provider: AuthProvider,
     code: string,
-    state: string
+    state: string,
+    appleUserData?: string
   ) {
     const { flow } = this.parseState(state);
     const isMobileFlow = flow === AuthFlow.IOS || flow === AuthFlow.ANDROID;
@@ -267,7 +375,8 @@ export class AuthController {
     // 공통: OAuth provider에서 사용자 정보 조회
     const user = await this.authService.getUserFromOAuthProvider(
       provider,
-      code
+      code,
+      appleUserData
     );
 
     if (isMobileFlow) {

@@ -106,6 +106,10 @@ export class ExampleConfigService extends ConfigService {
     return this.get<string>('EXAMPLE_APPLE_CLIENT_ID') || '';
   }
 
+  get appleBundleId(): string {
+    return this.get<string>('EXAMPLE_APPLE_BUNDLE_ID') || '';
+  }
+
   get appleKeyId(): string {
     return this.get<string>('EXAMPLE_APPLE_KEY_ID') || '';
   }
@@ -122,6 +126,7 @@ export class ExampleConfigService extends ConfigService {
     return {
       appleTeamId: this.appleTeamId,
       appleClientId: this.appleClientId,
+      appleBundleId: this.appleBundleId || undefined,
       appleKeyId: this.appleKeyId,
       applePrivateKey: this.applePrivateKey,
       appleRedirectUri: this.appleRedirectUri,

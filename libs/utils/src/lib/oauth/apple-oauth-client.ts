@@ -1,13 +1,16 @@
 import { HttpUtil } from '@example/utils';
 import { HttpService } from '@nestjs/axios';
 import * as jwt from 'jsonwebtoken';
+import * as crypto from 'crypto';
 
 const APPLE_AUTH_URL = 'https://appleid.apple.com/auth/authorize';
 const APPLE_TOKEN_URL = 'https://appleid.apple.com/auth/token';
+const APPLE_KEYS_URL = 'https://appleid.apple.com/auth/keys';
 
 export interface AppleAuthClientOptions {
   appleTeamId: string; // Team ID
-  appleClientId: string; // Services ID
+  appleClientId: string; // Services ID (for web)
+  appleBundleId?: string; // Bundle ID (for iOS/Android native)
   appleKeyId: string; // Key ID
   applePrivateKey: string; // Private key (p8 file content)
   appleRedirectUri: string;
@@ -34,6 +37,42 @@ export interface AppleUserInformation {
   email_verified?: boolean | string;
   is_private_email?: boolean | string;
   real_user_status?: number;
+}
+
+interface AppleJWK {
+  kty: string;
+  kid: string;
+  use: string;
+  alg: string;
+  n: string;
+  e: string;
+}
+
+// Apple Server-to-Server Notification Types
+export type AppleNotificationType =
+  | 'consent-revoked'
+  | 'account-delete'
+  | 'email-disabled'
+  | 'email-enabled';
+
+export interface AppleServerNotification {
+  payload: string; // Signed JWT
+}
+
+export interface AppleNotificationPayload {
+  iss: string;
+  aud: string;
+  iat: number;
+  jti: string;
+  events: string; // JSON string of AppleNotificationEvents
+}
+
+export interface AppleNotificationEvents {
+  type: AppleNotificationType;
+  sub: string; // User identifier
+  email?: string;
+  is_private_email?: boolean | string;
+  event_time: number;
 }
 
 export class AppleOAuthClient {
@@ -142,6 +181,130 @@ export class AppleOAuthClient {
         error instanceof Error ? error.message : 'Unknown error';
       throw new Error(`Failed to get user info from ID token: ${errorMessage}`);
     }
+  }
+
+  /**
+   * Verify identity token from native SDK (iOS/Android)
+   * Fetches Apple's public keys and verifies the JWT signature
+   */
+  async verifyIdentityToken(
+    identityToken: string
+  ): Promise<AppleUserInformation> {
+    try {
+      // 1. Decode header to get key ID (kid)
+      if (!identityToken) {
+        throw new Error('identityToken is required');
+      }
+      const trimmedToken = identityToken.trim();
+      const decoded = jwt.decode(trimmedToken, { complete: true });
+      if (!decoded?.header?.kid) {
+        throw new Error(
+          `Invalid identity token: missing kid in header (decoded: ${JSON.stringify(
+            decoded
+          )})`
+        );
+      }
+      const header = decoded.header;
+
+      // 2. Fetch Apple's public keys
+      const keysResponse = await this.httpUtil.get<{ keys: AppleJWK[] }>(
+        APPLE_KEYS_URL
+      );
+      const appleKey = keysResponse.keys.find((key) => key.kid === header.kid);
+
+      if (!appleKey) {
+        throw new Error('Apple public key not found for kid: ' + header.kid);
+      }
+
+      // 3. Convert JWK to PEM format
+      const publicKey = this.jwkToPem(appleKey);
+
+      // 4. Verify and decode the token
+      // Allow both web (Services ID) and native (Bundle ID) audiences
+      const audience: [string, ...string[]] = this.options.appleBundleId
+        ? [this.options.appleClientId, this.options.appleBundleId]
+        : [this.options.appleClientId];
+      const verified = jwt.verify(trimmedToken, publicKey, {
+        algorithms: ['RS256'],
+        issuer: 'https://appleid.apple.com',
+        audience,
+      }) as AppleUserInformation & { aud: string; iss: string; exp: number };
+
+      console.log(JSON.stringify(verified));
+
+      return {
+        sub: verified.sub,
+        email: verified.email,
+        email_verified: verified.email_verified,
+        is_private_email: verified.is_private_email,
+        real_user_status: verified.real_user_status,
+      };
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
+      throw new Error(`Failed to verify identity token: ${errorMessage}`);
+    }
+  }
+
+  /**
+   * Verify and decode Apple Server-to-Server notification payload
+   * Used for handling account events (consent-revoked, account-delete, etc.)
+   */
+  async verifyWebhookPayload(
+    signedPayload: string
+  ): Promise<AppleNotificationEvents> {
+    try {
+      // 1. Decode header to get key ID (kid)
+      const header = jwt.decode(signedPayload, { complete: true })?.header;
+      if (!header?.kid) {
+        throw new Error('Invalid webhook payload: missing kid in header');
+      }
+
+      // 2. Fetch Apple's public keys
+      const keysResponse = await this.httpUtil.get<{ keys: AppleJWK[] }>(
+        APPLE_KEYS_URL
+      );
+      const appleKey = keysResponse.keys.find((key) => key.kid === header.kid);
+
+      if (!appleKey) {
+        throw new Error('Apple public key not found for kid: ' + header.kid);
+      }
+
+      // 3. Convert JWK to PEM format
+      const publicKey = this.jwkToPem(appleKey);
+
+      // 4. Verify and decode the payload
+      const decoded = jwt.verify(signedPayload, publicKey, {
+        algorithms: ['RS256'],
+        issuer: 'https://appleid.apple.com',
+        audience: this.options.appleClientId,
+      }) as AppleNotificationPayload;
+
+      // 5. Parse the events JSON string
+      const events = JSON.parse(decoded.events) as AppleNotificationEvents;
+
+      return events;
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
+      throw new Error(`Failed to verify webhook payload: ${errorMessage}`);
+    }
+  }
+
+  /**
+   * Convert JWK (JSON Web Key) to PEM format using Node.js crypto
+   */
+  private jwkToPem(jwk: AppleJWK): string {
+    const keyObject = crypto.createPublicKey({
+      key: {
+        kty: jwk.kty,
+        n: jwk.n,
+        e: jwk.e,
+      },
+      format: 'jwk',
+    });
+
+    return keyObject.export({ type: 'spki', format: 'pem' }) as string;
   }
 
   /**

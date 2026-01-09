@@ -48,6 +48,12 @@ export const AUTH_EXCEPTIONS = {
     id: 'server_auth_code_invalid',
     message: 'Invalid or expired auth code',
   },
+  // Apple
+  APPLE_EMAIL_REQUIRED: {
+    id: 'server_auth_apple_email_required',
+    message:
+      'Email is required for new Apple users. This may happen if the user previously signed in but their account was deleted.',
+  },
 } as const;
 
 export type AuthExceptionKey = keyof typeof AUTH_EXCEPTIONS;
