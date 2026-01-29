@@ -24,16 +24,7 @@ export class UserService {
     });
 
     if (exists) {
-      const conflictFields: string[] = [];
-      if (exists.id === dto.id) {
-        conflictFields.push('id');
-      }
-      if (exists.email === dto.email) {
-        conflictFields.push('email');
-      }
-      throwException(ConflictException, USER_EXCEPTIONS.ALREADY_EXISTS, {
-        fields: conflictFields.join(', '),
-      });
+      throwException(ConflictException, USER_EXCEPTIONS.ALREADY_EXISTS);
     }
 
     const newUser = this.repo.create(dto);
@@ -48,7 +39,7 @@ export class UserService {
     });
 
     if (!user) {
-      throwException(NotFoundException, USER_EXCEPTIONS.NOT_FOUND, { id });
+      throwException(NotFoundException, USER_EXCEPTIONS.NOT_FOUND);
     }
 
     return user;
@@ -58,7 +49,7 @@ export class UserService {
     const user = await this.repo.findOneBy({ id: id });
 
     if (!user) {
-      throwException(NotFoundException, USER_EXCEPTIONS.NOT_FOUND, { id });
+      throwException(NotFoundException, USER_EXCEPTIONS.NOT_FOUND);
     }
 
     Object.assign(user, dto);
@@ -70,7 +61,7 @@ export class UserService {
     const result = await this.repo.delete(id);
 
     if (!user || result.affected === 0) {
-      throwException(NotFoundException, USER_EXCEPTIONS.NOT_FOUND, { id });
+      throwException(NotFoundException, USER_EXCEPTIONS.NOT_FOUND);
     }
 
     return user;
