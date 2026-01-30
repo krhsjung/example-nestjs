@@ -3,12 +3,9 @@ import {
   Controller,
   Delete,
   Get,
-  HttpCode,
-  HttpStatus,
   Logger,
   Param,
   Patch,
-  Post,
 } from '@nestjs/common';
 import { UserService } from './user.service';
 import { UserDto } from '@example/common';
@@ -20,15 +17,6 @@ export class UserController {
   private logger = new Logger(UserController.name, { timestamp: true });
 
   constructor(private readonly userService: UserService) {}
-
-  @Post()
-  @HttpCode(HttpStatus.CREATED)
-  async create(@Body() userDto: UserDto): Promise<UserDto> {
-    this.logger.log(
-      `[create][${userDto.id}]: user_information(${JSON.stringify(userDto)})`
-    );
-    return await this.userService.create(userDto);
-  }
 
   @Get(':id')
   async findOne(@Param('id') id: string): Promise<UserDto> {

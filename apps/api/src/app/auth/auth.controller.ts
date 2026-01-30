@@ -16,6 +16,7 @@ import {
   ExampleConfigService,
   UserDto,
   LoginDto,
+  RegisterDto,
   JwtAuthGuard,
   CurrentUser,
 } from '@example/common';
@@ -55,6 +56,21 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   async me(@CurrentUser() user: UserDto): Promise<UserDto> {
     return user;
+  }
+
+  /**
+   * 이메일/비밀번호 회원가입
+   * 가입 후 자동 로그인 (세션 생성 + 토큰 발급)
+   * @param registerDto - 회원가입 정보 (name, email, password)
+   * @returns 사용자 정보 (토큰은 쿠키로 설정)
+   */
+  @Post('register')
+  async register(
+    @Body() registerDto: RegisterDto,
+    @Res({ passthrough: true }) response: Response
+  ): Promise<UserDto> {
+    const tokens = await this.authService.handleRegister(registerDto);
+    return this.setTokensAndReturnUser(response, tokens);
   }
 
   /**

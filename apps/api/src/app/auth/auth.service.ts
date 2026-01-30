@@ -2,8 +2,10 @@ import {
   User,
   UserDto,
   LoginDto,
+  RegisterDto,
   ExampleConfigService,
   AUTH_EXCEPTIONS,
+  USER_EXCEPTIONS,
   throwException,
   TokenService,
   TokenSessionService,
@@ -19,9 +21,11 @@ import {
   GoogleUserInformation,
   OAuthMethod,
 } from '@example/utils';
+import * as argon2 from 'argon2';
 import { HttpService } from '@nestjs/axios';
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   Logger,
   NotFoundException,
@@ -72,6 +76,41 @@ export class AuthService {
   }
 
   /**
+   * 이메일/비밀번호 회원가입 처리
+   * 비밀번호를 argon2로 해싱하여 저장하고 세션 생성
+   *
+   * @param registerDto - 회원가입 정보 (name, email, password)
+   * @returns 토큰 쌍 (accessToken, refreshToken)
+   * @throws ConflictException - 이미 존재하는 이메일인 경우
+   */
+  async handleRegister(registerDto: RegisterDto): Promise<TokenPair> {
+    const { name, email, password, provider } = registerDto;
+
+    const existingUser = await this.userRepository.findOne({
+      where: { email },
+    });
+
+    if (existingUser) {
+      throwException(ConflictException, USER_EXCEPTIONS.ALREADY_EXISTS);
+    }
+
+    const hashedPassword = await argon2.hash(password);
+
+    const user = Object.assign(new User(), {
+      name,
+      email,
+      password: hashedPassword,
+      provider,
+    });
+
+    await this.userRepository.save(user);
+
+    this.logger.log(`[handleRegister] Registered user: ${email}`);
+
+    return this.tokenSessionService.createSession(user.toDto());
+  }
+
+  /**
    * 이메일/비밀번호 로그인 처리
    *
    * @param loginDto - 로그인 정보 (email, password)
@@ -84,10 +123,15 @@ export class AuthService {
     this.logger.log(`[handleLogin] Login for email: ${email}`);
 
     const user = await this.userRepository.findOne({
-      where: { email, password },
+      where: { email },
     });
 
-    if (!user || user.password !== password) {
+    if (!user || !user.password) {
+      throwException(NotFoundException, AUTH_EXCEPTIONS.CREDENTIALS_INVALID);
+    }
+
+    const isPasswordValid = await argon2.verify(user.password, password);
+    if (!isPasswordValid) {
       throwException(NotFoundException, AUTH_EXCEPTIONS.CREDENTIALS_INVALID);
     }
 
@@ -152,9 +196,12 @@ export class AuthService {
     const state = JSON.stringify({ flow, origin });
     const urlGenerators: { [key in AuthProvider]?: () => string } = {
       [AuthProvider.GOOGLE]: () =>
-        this.googleOAuthClient.generateAuthUrl(state, OAuthMethod.DIRECT, prompt),
-      [AuthProvider.APPLE]: () =>
-        this.appleOAuthClient.generateAuthUrl(state),
+        this.googleOAuthClient.generateAuthUrl(
+          state,
+          OAuthMethod.DIRECT,
+          prompt
+        ),
+      [AuthProvider.APPLE]: () => this.appleOAuthClient.generateAuthUrl(state),
     };
 
     const generator = urlGenerators[provider];
@@ -177,7 +224,9 @@ export class AuthService {
     code: string,
     appleUserData?: string
   ): Promise<UserDto> {
-    this.logger.log(`[getUserFromOAuthProvider] Fetching user info from ${provider}`);
+    this.logger.log(
+      `[getUserFromOAuthProvider] Fetching user info from ${provider}`
+    );
 
     const handlers: { [key in AuthProvider]?: () => Promise<UserDto> } = {
       [AuthProvider.GOOGLE]: () => this.handleGoogleCallback(code),
@@ -331,7 +380,9 @@ export class AuthService {
     const userInfo: AppleUserInformation =
       await this.appleOAuthClient.verifyIdentityToken(identityToken);
 
-    this.logger.log(`[handleAppleNativeLogin] Token verified for user: ${userInfo.sub}`);
+    this.logger.log(
+      `[handleAppleNativeLogin] Token verified for user: ${userInfo.sub}`
+    );
 
     const mergedUserInfo: AppleUserInformation = {
       ...userInfo,
@@ -430,7 +481,9 @@ export class AuthService {
     email?: string
   ): string {
     if (fullName?.givenName || fullName?.familyName) {
-      return [fullName.givenName, fullName.familyName].filter(Boolean).join(' ');
+      return [fullName.givenName, fullName.familyName]
+        .filter(Boolean)
+        .join(' ');
     }
     return email?.split('@')[0] || '';
   }
@@ -543,7 +596,9 @@ export class AuthService {
         break;
 
       default:
-        this.logger.warn(`[handleAppleWebhook] Unknown event type: ${events.type}`);
+        this.logger.warn(
+          `[handleAppleWebhook] Unknown event type: ${events.type}`
+        );
     }
   }
 
