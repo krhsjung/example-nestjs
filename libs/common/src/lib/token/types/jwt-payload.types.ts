@@ -7,7 +7,7 @@ import { AuthProvider } from '@example/utils';
  * 애플리케이션의 JWT 토큰에 포함되는 사용자 정보
  */
 export interface JwtPayload extends BaseJwtPayload {
-  sub: string; // userId
+  sub: number; // userIdx
   email: string;
   name: string;
   picture?: string;

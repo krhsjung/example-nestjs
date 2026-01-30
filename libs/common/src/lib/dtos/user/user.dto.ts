@@ -1,7 +1,7 @@
 import { AuthProvider } from '@example/utils';
 
 export class UserDto {
-  readonly id?: string;
+  readonly idx!: number;
   readonly name!: string;
   readonly email!: string;
   readonly picture?: string;

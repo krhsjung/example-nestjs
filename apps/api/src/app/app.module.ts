@@ -1,4 +1,4 @@
-import { Module, OnModuleInit } from '@nestjs/common';
+import { Logger, Module, OnModuleInit } from '@nestjs/common';
 import { UserModule } from './user/user.module';
 import { AuthModule } from './auth/auth.module';
 import { HealthModule } from './health/health.module';
@@ -51,7 +51,9 @@ export class AppModule implements OnModuleInit {
     private readonly userSubscriber: UserSubscriber
   ) {}
 
-  onModuleInit() {
+  private readonly logger = new Logger(AppModule.name, { timestamp: true });
+
+  async onModuleInit() {
     // UserSubscriber에 SessionService 주입
     this.userSubscriber.setSessionService(this.tokenSessionService);
 
@@ -60,5 +62,27 @@ export class AppModule implements OnModuleInit {
     if (!this.dataSource.subscribers.includes(this.userSubscriber)) {
       this.dataSource.subscribers.push(this.userSubscriber);
     }
+
+    // 스키마 및 테이블이 없으면 생성
+    await this.ensureSchema();
+  }
+
+  private async ensureSchema() {
+    await this.dataSource.query(`
+      CREATE TABLE IF NOT EXISTS example."user" (
+        "idx"           SERIAL PRIMARY KEY,
+        "sns_id"        VARCHAR UNIQUE,
+        "provider"      VARCHAR NOT NULL,
+        "password"      VARCHAR,
+        "name"          VARCHAR NOT NULL,
+        "email"         VARCHAR NOT NULL UNIQUE,
+        "picture"       VARCHAR,
+        "max_sessions"  INT NOT NULL DEFAULT 1,
+        "updatedAt"     TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "createdAt"     TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    this.logger.log('Database schema verified');
   }
 }

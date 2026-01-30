@@ -122,7 +122,7 @@ export class AuthController {
 
     if (sessionId) {
       // 현재 세션만 로그아웃
-      await this.authService.handleLogout(user.id, sessionId);
+      await this.authService.handleLogout(user.idx!, sessionId);
     }
 
     // 쿠키 삭제
@@ -144,7 +144,7 @@ export class AuthController {
     @Res({ passthrough: true }) response: Response
   ): Promise<void> {
     // 특정 세션 로그아웃
-    await this.authService.handleLogout(user.id, sessionId);
+    await this.authService.handleLogout(user.idx!, sessionId);
 
     // 로그아웃한 세션이 현재 세션인 경우에만 쿠키 삭제
     const currentSessionId =
@@ -167,7 +167,7 @@ export class AuthController {
     @Res({ passthrough: true }) response: Response
   ): Promise<void> {
     // 모든 세션 로그아웃
-    await this.authService.handleLogoutAll(user.id);
+    await this.authService.handleLogoutAll(user.idx!);
 
     // 쿠키 삭제
     this.clearTokenCookies(response);

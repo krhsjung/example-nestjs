@@ -14,10 +14,10 @@ export class UserService {
     @InjectRepository(User) private readonly repo: Repository<User>
   ) {}
 
-  async fineOne(id: string): Promise<User> {
+  async fineOne(idx: number): Promise<User> {
     const user = await this.repo.findOne({
-      where: { id },
-      select: ['id', 'name', 'email', 'createdAt'],
+      where: { idx },
+      select: ['idx', 'name', 'email', 'createdAt'],
     });
 
     if (!user) {
@@ -27,8 +27,8 @@ export class UserService {
     return user;
   }
 
-  async update(id: string, dto: UserDto): Promise<User> {
-    const user = await this.repo.findOneBy({ id: id });
+  async update(idx: number, dto: UserDto): Promise<User> {
+    const user = await this.repo.findOneBy({ idx });
 
     if (!user) {
       throwException(NotFoundException, USER_EXCEPTIONS.NOT_FOUND);
@@ -38,9 +38,9 @@ export class UserService {
     return this.repo.save(user);
   }
 
-  async remove(id: string): Promise<User> {
-    const user = await this.repo.findOneBy({ id: id });
-    const result = await this.repo.delete(id);
+  async remove(idx: number): Promise<User> {
+    const user = await this.repo.findOneBy({ idx });
+    const result = await this.repo.delete({ idx });
 
     if (!user || result.affected === 0) {
       throwException(NotFoundException, USER_EXCEPTIONS.NOT_FOUND);

@@ -45,7 +45,7 @@ export class TokenService {
    */
   userToPayload(user: UserDto, sessionId: string): JwtPayload {
     return {
-      sub: user.id!,
+      sub: user.idx!,
       email: user.email,
       name: user.name,
       picture: user.picture,
@@ -60,7 +60,7 @@ export class TokenService {
    */
   payloadToUser(payload: JwtPayload): UserDto {
     return {
-      id: payload.sub,
+      idx: payload.sub,
       email: payload.email,
       name: payload.name,
       picture: payload.picture,

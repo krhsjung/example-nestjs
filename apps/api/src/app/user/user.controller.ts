@@ -5,6 +5,7 @@ import {
   Get,
   Logger,
   Param,
+  ParseIntPipe,
   Patch,
 } from '@nestjs/common';
 import { UserService } from './user.service';
@@ -18,26 +19,26 @@ export class UserController {
 
   constructor(private readonly userService: UserService) {}
 
-  @Get(':id')
-  async findOne(@Param('id') id: string): Promise<UserDto> {
-    this.logger.log(`[findOne][${id}]: user_id ${id}`);
-    return await this.userService.fineOne(id);
+  @Get(':idx')
+  async findOne(@Param('idx', ParseIntPipe) idx: number): Promise<UserDto> {
+    this.logger.log(`[findOne][${idx}]: user_idx ${idx}`);
+    return await this.userService.fineOne(idx);
   }
 
-  @Patch(':id')
+  @Patch(':idx')
   async update(
-    @Param('id') id: string,
+    @Param('idx', ParseIntPipe) idx: number,
     @Body() userDto: UserDto
   ): Promise<UserDto> {
     this.logger.log(
-      `[update][${id}]: user_information(${JSON.stringify(userDto)})`
+      `[update][${idx}]: user_information(${JSON.stringify(userDto)})`
     );
-    return this.userService.update(id, userDto);
+    return this.userService.update(idx, userDto);
   }
 
-  @Delete(':id')
-  async remove(@Param('id') id: string): Promise<UserDto> {
-    this.logger.log(`[remove][${id}]: user_id(${id})`);
-    return await this.userService.remove(id);
+  @Delete(':idx')
+  async remove(@Param('idx', ParseIntPipe) idx: number): Promise<UserDto> {
+    this.logger.log(`[remove][${idx}]: user_idx(${idx})`);
+    return await this.userService.remove(idx);
   }
 }

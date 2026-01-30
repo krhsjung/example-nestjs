@@ -45,13 +45,13 @@ export class TokenSessionService {
     const ttl = this.jwtTokenService.getTokenTTL(tokens.refreshToken);
 
     // 세션 추가 (최대 세션 수 관리)
-    await this.addSession(user.id!, sessionId, ttl, maxSessions);
+    await this.addSession(user.idx!, sessionId, ttl, maxSessions);
 
     // Refresh Token 저장
-    await this.saveRefreshToken(user.id!, sessionId, tokens.refreshToken);
+    await this.saveRefreshToken(user.idx!, sessionId, tokens.refreshToken);
 
     this.logger.log(
-      `Created session for user: ${user.email} (${user.id}) with session: ${sessionId} (max sessions: ${maxSessions})`
+      `Created session for user: ${user.email} (${user.idx}) with session: ${sessionId} (max sessions: ${maxSessions})`
     );
 
     return tokens;
@@ -61,7 +61,7 @@ export class TokenSessionService {
    * 세션 추가 (최대 세션 수 초과 시 가장 오래된 세션 제거)
    */
   private async addSession(
-    userId: string,
+    userId: number,
     sessionId: string,
     ttl: number,
     maxSessions: number = 1
@@ -108,7 +108,7 @@ export class TokenSessionService {
   /**
    * 세션 존재 여부 확인
    */
-  async hasSession(userId: string, sessionId: string): Promise<boolean> {
+  async hasSession(userId: number, sessionId: string): Promise<boolean> {
     const key = `${this.SESSION_PREFIX}${userId}`;
     const score = await this.redisService.raw.zscore(key, sessionId);
     return score !== null;
@@ -117,7 +117,7 @@ export class TokenSessionService {
   /**
    * 세션 제거
    */
-  async removeSession(userId: string, sessionId: string): Promise<void> {
+  async removeSession(userId: number, sessionId: string): Promise<void> {
     const key = `${this.SESSION_PREFIX}${userId}`;
     await this.redisService.raw.zrem(key, sessionId);
     await this.deleteRefreshToken(userId, sessionId);
@@ -127,7 +127,7 @@ export class TokenSessionService {
   /**
    * 사용자의 모든 세션 제거
    */
-  async removeAllSessions(userId: string): Promise<void> {
+  async removeAllSessions(userId: number): Promise<void> {
     // 모든 세션 ID 조회
     const sessionIds = await this.getAllSessions(userId);
 
@@ -145,7 +145,7 @@ export class TokenSessionService {
   /**
    * 사용자의 활성 세션 수 조회
    */
-  async getSessionCount(userId: string): Promise<number> {
+  async getSessionCount(userId: number): Promise<number> {
     const key = `${this.SESSION_PREFIX}${userId}`;
     return await this.redisService.raw.zcard(key);
   }
@@ -153,7 +153,7 @@ export class TokenSessionService {
   /**
    * 사용자의 모든 세션 ID 조회
    */
-  async getAllSessions(userId: string): Promise<string[]> {
+  async getAllSessions(userId: number): Promise<string[]> {
     const key = `${this.SESSION_PREFIX}${userId}`;
     // ZREVRANGE: score가 높은 순(최신 순)으로 반환
     return await this.redisService.raw.zrevrange(key, 0, -1);
@@ -163,7 +163,7 @@ export class TokenSessionService {
    * 세션 활동 시간 업데이트
    */
   async updateSessionActivity(
-    userId: string,
+    userId: number,
     sessionId: string
   ): Promise<void> {
     const key = `${this.SESSION_PREFIX}${userId}`;
@@ -177,7 +177,7 @@ export class TokenSessionService {
    * maxSessions 변경 시 기존 세션을 새로운 제한에 맞게 정리
    */
   async enforceMaxSessions(
-    userId: string,
+    userId: number,
     newMaxSessions: number
   ): Promise<void> {
     const key = `${this.SESSION_PREFIX}${userId}`;
@@ -207,7 +207,7 @@ export class TokenSessionService {
    * Refresh Token을 Redis에 저장
    */
   private async saveRefreshToken(
-    userId: string,
+    userId: number,
     sessionId: string,
     token: string
   ): Promise<void> {
@@ -224,7 +224,7 @@ export class TokenSessionService {
    * Redis에서 Refresh Token 조회
    */
   private async getRefreshToken(
-    userId: string,
+    userId: number,
     sessionId: string
   ): Promise<string | null> {
     const key = `${this.REFRESH_TOKEN_PREFIX}${userId}:${sessionId}`;
@@ -235,7 +235,7 @@ export class TokenSessionService {
    * Refresh Token 삭제
    */
   private async deleteRefreshToken(
-    userId: string,
+    userId: number,
     sessionId: string
   ): Promise<void> {
     const key = `${this.REFRESH_TOKEN_PREFIX}${userId}:${sessionId}`;

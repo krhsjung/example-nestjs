@@ -62,22 +62,22 @@ export class UserSubscriber implements EntitySubscriberInterface<User> {
       const newMaxSessions = entity.maxSessions;
 
       this.logger.log(
-        `maxSessions changed for user ${entity.id}: ${oldMaxSessions} -> ${newMaxSessions}`
+        `maxSessions changed for user ${entity.idx}: ${oldMaxSessions} -> ${newMaxSessions}`
       );
 
       // 새로운 maxSessions 값이 이전보다 작을 때만 세션 정리
       if (newMaxSessions < oldMaxSessions) {
         try {
           await this.tokenSessionService.enforceMaxSessions(
-            entity.id,
+            entity.idx,
             newMaxSessions
           );
           this.logger.log(
-            `Successfully enforced maxSessions=${newMaxSessions} for user ${entity.id}`
+            `Successfully enforced maxSessions=${newMaxSessions} for user ${entity.idx}`
           );
         } catch (error) {
           this.logger.error(
-            `Failed to enforce maxSessions for user ${entity.id}`,
+            `Failed to enforce maxSessions for user ${entity.idx}`,
             error
           );
         }

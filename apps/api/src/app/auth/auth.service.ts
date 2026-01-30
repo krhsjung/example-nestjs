@@ -150,7 +150,7 @@ export class AuthService {
    * @param userId - 사용자 ID
    * @param sessionId - 로그아웃할 세션 ID
    */
-  async handleLogout(userId: string, sessionId: string): Promise<void> {
+  async handleLogout(userId: number, sessionId: string): Promise<void> {
     this.logger.log(
       `[handleLogout] Logout for userId: ${userId}, session: ${sessionId}`
     );
@@ -164,7 +164,7 @@ export class AuthService {
    *
    * @param userId - 사용자 ID
    */
-  async handleLogoutAll(userId: string): Promise<void> {
+  async handleLogoutAll(userId: number): Promise<void> {
     this.logger.log(
       `[handleLogoutAll] Logout all sessions for userId: ${userId}`
     );
@@ -258,12 +258,14 @@ export class AuthService {
       await this.googleOAuthClient.getUserInfo(token.access_token);
 
     const provider: AuthProvider = AuthProvider.GOOGLE;
-    const { id, email, name, picture } = userInfo;
+    const { id: snsId, email, name, picture } = userInfo;
 
-    const existingUser = await this.userRepository.findOne({ where: { id } });
+    const existingUser = await this.userRepository.findOne({
+      where: { snsId },
+    });
 
     const user = Object.assign(existingUser ?? new User(), {
-      id,
+      snsId,
       email,
       name,
       picture,
@@ -425,9 +427,11 @@ export class AuthService {
     fullName?: { givenName?: string; familyName?: string }
   ): Promise<UserDto> {
     const provider: AuthProvider = AuthProvider.APPLE;
-    const id = userInfo.sub;
+    const snsId = userInfo.sub;
 
-    const existingUser = await this.userRepository.findOne({ where: { id } });
+    const existingUser = await this.userRepository.findOne({
+      where: { snsId },
+    });
 
     if (existingUser) {
       let updated = false;
@@ -457,7 +461,7 @@ export class AuthService {
     }
 
     const newUser = this.userRepository.create({
-      id,
+      snsId,
       email: userInfo.email,
       name: this.buildAppleName(fullName, userInfo.email),
       picture: null,
@@ -605,15 +609,21 @@ export class AuthService {
   /**
    * Apple 사용자 세션 무효화 (consent-revoked, account-delete 공통 처리)
    *
-   * @param userId - Apple 사용자 ID (sub)
+   * @param snsId - Apple 사용자 ID (sub)
    * @param reason - 세션 무효화 사유 (로깅용)
    */
   private async revokeAppleUserSessions(
-    userId: string,
+    snsId: string,
     reason: string
   ): Promise<void> {
-    this.logger.log(`[revokeAppleUserSessions] ${reason}: ${userId}`);
+    this.logger.log(`[revokeAppleUserSessions] ${reason}: ${snsId}`);
 
-    await this.tokenSessionService.removeAllSessions(userId);
+    const user = await this.userRepository.findOne({ where: { snsId } });
+    if (!user) {
+      this.logger.warn(`[revokeAppleUserSessions] User not found: ${snsId}`);
+      return;
+    }
+
+    await this.tokenSessionService.removeAllSessions(user.idx);
   }
 }

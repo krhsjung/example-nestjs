@@ -1,19 +1,20 @@
 import { UserDto } from '@example/common';
 import { AuthProvider } from '@example/utils';
 import {
-  BeforeInsert,
   Column,
   CreateDateColumn,
   Entity,
-  PrimaryColumn,
+  PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
-import { v4 as uuidv4 } from 'uuid';
 
 @Entity({ schema: 'example', name: 'user' })
 export class User {
-  @PrimaryColumn('varchar', { name: 'id' })
-  id!: string;
+  @PrimaryGeneratedColumn({ name: 'idx' })
+  idx!: number;
+
+  @Column({ type: 'varchar', name: 'sns_id', unique: true, nullable: true })
+  snsId?: string;
 
   @Column({ type: 'varchar', name: 'provider', nullable: false })
   provider!: AuthProvider;
@@ -55,16 +56,9 @@ export class User {
   })
   createdAt?: Date;
 
-  @BeforeInsert()
-  generateId() {
-    if (!this.id) {
-      this.id = uuidv4();
-    }
-  }
-
   toDto(): UserDto {
     return {
-      id: this.id,
+      idx: this.idx,
       name: this.name,
       email: this.email,
       picture: this.picture,
