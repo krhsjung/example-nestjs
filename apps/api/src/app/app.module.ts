@@ -78,8 +78,8 @@ export class AppModule implements OnModuleInit {
         "email"         VARCHAR NOT NULL UNIQUE,
         "picture"       VARCHAR,
         "max_sessions"  INT NOT NULL DEFAULT 1,
-        "updatedAt"     TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        "createdAt"     TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        "updated_at"    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "created_at"    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
       )
     `);
 

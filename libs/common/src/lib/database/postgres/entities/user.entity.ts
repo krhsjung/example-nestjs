@@ -43,7 +43,7 @@ export class User {
   @UpdateDateColumn({
     type: 'timestamp',
     default: () => 'CURRENT_TIMESTAMP',
-    name: 'updatedAt',
+    name: 'updated_at',
     nullable: false,
   })
   updatedAt?: Date;
@@ -51,7 +51,7 @@ export class User {
   @CreateDateColumn({
     type: 'timestamp',
     default: () => 'CURRENT_TIMESTAMP',
-    name: 'createdAt',
+    name: 'created_at',
     nullable: false,
   })
   createdAt?: Date;
