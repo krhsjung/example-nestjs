@@ -541,6 +541,17 @@ export class AuthService {
   }
 
   /**
+   * Refresh Token으로 새 토큰 쌍 발급 (Refresh Token Rotation)
+   * 모바일 클라이언트가 TOKEN_EXPIRED를 받았을 때 호출
+   *
+   * @param refreshToken - 현재 보유한 Refresh Token
+   * @returns 새로운 토큰 쌍 (accessToken, refreshToken)
+   */
+  async refreshTokens(refreshToken: string): Promise<TokenPair> {
+    return this.tokenSessionService.refreshTokenPair(refreshToken);
+  }
+
+  /**
    * 인증 코드로 토큰 교환
    * 모바일 앱에서 받은 일회용 코드를 accessToken/refreshToken으로 교환
    *

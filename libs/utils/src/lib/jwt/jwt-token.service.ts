@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { JwtConfig, TokenPair } from './jwt.types';
 import * as jwt from 'jsonwebtoken';
 
@@ -21,7 +21,6 @@ export interface BaseJwtPayload {
  */
 @Injectable()
 export class JwtTokenService<T extends BaseJwtPayload = BaseJwtPayload> {
-  private logger = new Logger(JwtTokenService.name, { timestamp: true });
   private config: JwtConfig;
 
   constructor(config: JwtConfig) {
@@ -58,34 +57,20 @@ export class JwtTokenService<T extends BaseJwtPayload = BaseJwtPayload> {
 
   /**
    * Access Token 검증
+   * @throws {TokenExpiredError} 토큰 만료
+   * @throws {JsonWebTokenError} 토큰 변조/무효
    */
   verifyAccessToken(token: string): T {
-    try {
-      const payload = jwt.verify(
-        token,
-        this.config.accessTokenSecret
-      ) as T;
-      return payload;
-    } catch (error) {
-      this.logger.error('Access token verification failed', error);
-      throw new Error('Invalid or expired access token');
-    }
+    return jwt.verify(token, this.config.accessTokenSecret) as T;
   }
 
   /**
    * Refresh Token 검증
+   * @throws {TokenExpiredError} 토큰 만료
+   * @throws {JsonWebTokenError} 토큰 변조/무효
    */
   verifyRefreshToken(token: string): T {
-    try {
-      const payload = jwt.verify(
-        token,
-        this.config.refreshTokenSecret
-      ) as T;
-      return payload;
-    } catch (error) {
-      this.logger.error('Refresh token verification failed', error);
-      throw new Error('Invalid or expired refresh token');
-    }
+    return jwt.verify(token, this.config.refreshTokenSecret) as T;
   }
 
   /**

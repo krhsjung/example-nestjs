@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Param,
+  Req,
   Res,
   Query,
   Post,
@@ -10,17 +11,18 @@ import {
   HttpCode,
   UseGuards,
 } from '@nestjs/common';
-import { Response } from 'express';
+import { Request, Response } from 'express';
 import { AuthService } from './auth.service';
 import {
   ExampleConfigService,
   UserDto,
   LoginDto,
   RegisterDto,
+  AuthResponseDto,
   JwtAuthGuard,
   CurrentUser,
 } from '@example/common';
-import { AuthCallback, AuthFlow, AuthProvider, Cookie } from '@example/utils';
+import { AuthCallback, AuthFlow, AuthProvider } from '@example/utils';
 
 const CONTROLLER_PREFIX = 'auth';
 const DEFAULT_AUTH_FLOW = AuthFlow.REDIRECT;
@@ -74,6 +76,21 @@ export class AuthController {
   }
 
   /**
+   * 이메일/비밀번호 회원가입 (모바일)
+   * 가입 후 자동 로그인, 토큰을 응답 body로 반환
+   * @param registerDto - 회원가입 정보 (name, email, password)
+   * @returns 토큰 + 사용자 정보
+   */
+  @Post('register/mobile')
+  async registerMobile(
+    @Body() registerDto: RegisterDto
+  ): Promise<AuthResponseDto> {
+    const tokens = await this.authService.handleRegister(registerDto);
+    const user = this.authService.getUserFromToken(tokens.accessToken);
+    return { ...tokens, user };
+  }
+
+  /**
    * 이메일/비밀번호 로그인
    * @param loginDto - 로그인 정보 (email, password)
    * @returns 사용자 정보 (토큰은 쿠키로 설정)
@@ -91,18 +108,44 @@ export class AuthController {
   }
 
   /**
+   * 이메일/비밀번호 로그인 (모바일)
+   * 토큰을 응답 body로 반환
+   * @param loginDto - 로그인 정보 (email, password)
+   * @returns 토큰 + 사용자 정보
+   */
+  @Post('login/mobile')
+  async loginMobile(@Body() loginDto: LoginDto): Promise<AuthResponseDto> {
+    const tokens = await this.authService.handleLogin(loginDto);
+    const user = this.authService.getUserFromToken(tokens.accessToken);
+    return { ...tokens, user };
+  }
+
+  /**
    * 모바일 OAuth용 인증 코드 교환
-   * 일회용 authCode로 토큰 발급 및 쿠키 저장
+   * 일회용 authCode로 토큰 발급, 토큰을 응답 body로 반환
    * @param code - 일회용 인증 코드
-   * @returns 사용자 정보 (토큰은 쿠키로 설정)
+   * @returns 토큰 + 사용자 정보
    */
   @Post('exchange')
-  async exchange(
-    @Body('code') code: string,
-    @Res({ passthrough: true }) response: Response
-  ): Promise<UserDto> {
+  async exchange(@Body('code') code: string): Promise<AuthResponseDto> {
     const tokens = await this.authService.exchangeAuthCode(code);
-    return this.setTokensAndReturnUser(response, tokens);
+    const user = this.authService.getUserFromToken(tokens.accessToken);
+    return { ...tokens, user };
+  }
+
+  /**
+   * 모바일 토큰 갱신
+   * Refresh Token으로 새 토큰 쌍 발급 (Refresh Token Rotation)
+   * @param refreshToken - 현재 보유한 Refresh Token
+   * @returns 새로운 토큰 + 사용자 정보
+   */
+  @Post('refresh')
+  async refresh(
+    @Body('refreshToken') refreshToken: string
+  ): Promise<AuthResponseDto> {
+    const tokens = await this.authService.refreshTokens(refreshToken);
+    const user = this.authService.getUserFromToken(tokens.accessToken);
+    return { ...tokens, user };
   }
 
   /**
@@ -114,18 +157,18 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   async logout(
     @CurrentUser() user: UserDto,
-    @Cookie('accessToken') accessToken: string,
+    @Req() request: Request,
     @Res({ passthrough: true }) response: Response
   ): Promise<void> {
-    // Access Token에서 세션 ID 추출
-    const sessionId = this.authService.getSessionIdFromToken(accessToken);
+    const accessToken = this.extractAccessToken(request);
 
-    if (sessionId) {
-      // 현재 세션만 로그아웃
-      await this.authService.handleLogout(user.idx!, sessionId);
+    if (accessToken) {
+      const sessionId = this.authService.getSessionIdFromToken(accessToken);
+      if (sessionId) {
+        await this.authService.handleLogout(user.idx, sessionId);
+      }
     }
 
-    // 쿠키 삭제
     this.clearTokenCookies(response);
   }
 
@@ -140,18 +183,19 @@ export class AuthController {
   async logoutSession(
     @CurrentUser() user: UserDto,
     @Param('sessionId') sessionId: string,
-    @Cookie('accessToken') accessToken: string,
+    @Req() request: Request,
     @Res({ passthrough: true }) response: Response
   ): Promise<void> {
-    // 특정 세션 로그아웃
-    await this.authService.handleLogout(user.idx!, sessionId);
+    await this.authService.handleLogout(user.idx, sessionId);
 
     // 로그아웃한 세션이 현재 세션인 경우에만 쿠키 삭제
-    const currentSessionId =
-      this.authService.getSessionIdFromToken(accessToken);
-
-    if (currentSessionId === sessionId) {
-      this.clearTokenCookies(response);
+    const accessToken = this.extractAccessToken(request);
+    if (accessToken) {
+      const currentSessionId =
+        this.authService.getSessionIdFromToken(accessToken);
+      if (currentSessionId === sessionId) {
+        this.clearTokenCookies(response);
+      }
     }
   }
 
@@ -166,10 +210,8 @@ export class AuthController {
     @CurrentUser() user: UserDto,
     @Res({ passthrough: true }) response: Response
   ): Promise<void> {
-    // 모든 세션 로그아웃
-    await this.authService.handleLogoutAll(user.idx!);
+    await this.authService.handleLogoutAll(user.idx);
 
-    // 쿠키 삭제
     this.clearTokenCookies(response);
   }
 
@@ -200,21 +242,21 @@ export class AuthController {
    * @param user - Apple 사용자 ID
    * @param email - 사용자 이메일 (최초 로그인 시에만 제공)
    * @param fullName - 사용자 이름 (최초 로그인 시에만 제공)
-   * @returns 사용자 정보 (토큰은 쿠키로 설정)
+   * @returns 토큰 + 사용자 정보
    */
   @Post('apple/native')
   async appleNativeLogin(
     @Body('identityToken') identityToken: string,
     @Body('user') user: string,
     @Body('email') email?: string,
-    @Body('fullName') fullName?: { givenName?: string; familyName?: string },
-    @Res({ passthrough: true }) response?: Response
-  ): Promise<UserDto> {
+    @Body('fullName') fullName?: { givenName?: string; familyName?: string }
+  ): Promise<AuthResponseDto> {
     const tokens = await this.authService.handleAppleNativeLogin(
       identityToken,
       { user, email, fullName }
     );
-    return this.setTokensAndReturnUser(response, tokens);
+    const userDto = this.authService.getUserFromToken(tokens.accessToken);
+    return { ...tokens, user: userDto };
   }
 
   /**
@@ -350,6 +392,17 @@ export class AuthController {
       tokens.refreshToken,
       this.configService.refreshTokenCookieOptions
     );
+  }
+
+  /**
+   * Authorization 헤더 또는 쿠키에서 Access Token 추출
+   */
+  private extractAccessToken(request: Request): string | null {
+    const bearer = request.headers.authorization;
+    if (bearer?.startsWith('Bearer ')) {
+      return bearer.slice(7);
+    }
+    return request.cookies?.accessToken ?? null;
   }
 
   /**

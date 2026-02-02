@@ -1,4 +1,10 @@
-import { Logger, Module, OnModuleInit } from '@nestjs/common';
+import {
+  Logger,
+  MiddlewareConsumer,
+  Module,
+  NestModule,
+  OnModuleInit,
+} from '@nestjs/common';
 import { UserModule } from './user/user.module';
 import { AuthModule } from './auth/auth.module';
 import { HealthModule } from './health/health.module';
@@ -9,6 +15,7 @@ import {
   UserSubscriber,
   TokenModule,
   TokenSessionService,
+  TokenRefreshMiddleware,
 } from '@example/common';
 import { RedisModule } from '@example/utils';
 import { DataSource } from 'typeorm';
@@ -42,9 +49,9 @@ import { DataSource } from 'typeorm';
     TokenModule,
   ],
   controllers: [],
-  providers: [UserSubscriber],
+  providers: [UserSubscriber, TokenRefreshMiddleware],
 })
-export class AppModule implements OnModuleInit {
+export class AppModule implements NestModule, OnModuleInit {
   constructor(
     private readonly dataSource: DataSource,
     private readonly tokenSessionService: TokenSessionService,
@@ -52,6 +59,10 @@ export class AppModule implements OnModuleInit {
   ) {}
 
   private readonly logger = new Logger(AppModule.name, { timestamp: true });
+
+  configure(consumer: MiddlewareConsumer) {
+    consumer.apply(TokenRefreshMiddleware).forRoutes('*');
+  }
 
   async onModuleInit() {
     // UserSubscriber에 SessionService 주입

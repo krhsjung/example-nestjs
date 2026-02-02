@@ -24,7 +24,7 @@ export class TokenService {
       return this.jwtTokenService.verifyAccessToken(token);
     } catch (error) {
       this.logger.error('Access token verification failed', error);
-      throwException(UnauthorizedException, AUTH_EXCEPTIONS.TOKEN_INVALID);
+      this.throwTokenException(error);
     }
   }
 
@@ -36,8 +36,18 @@ export class TokenService {
       return this.jwtTokenService.verifyRefreshToken(token);
     } catch (error) {
       this.logger.error('Refresh token verification failed', error);
-      throwException(UnauthorizedException, AUTH_EXCEPTIONS.TOKEN_INVALID);
+      this.throwTokenException(error);
     }
+  }
+
+  /**
+   * TokenExpiredError와 그 외 토큰 에러를 구분하여 예외 발생
+   */
+  private throwTokenException(error: unknown): never {
+    if (error instanceof Error && error.name === 'TokenExpiredError') {
+      throwException(UnauthorizedException, AUTH_EXCEPTIONS.TOKEN_EXPIRED);
+    }
+    throwException(UnauthorizedException, AUTH_EXCEPTIONS.TOKEN_INVALID);
   }
 
   /**
