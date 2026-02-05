@@ -77,8 +77,7 @@ export class UserSubscriber implements EntitySubscriberInterface<User> {
           );
         } catch (error) {
           this.logger.error(
-            `Failed to enforce maxSessions for user ${entity.idx}`,
-            error
+            `Failed to enforce maxSessions for user ${entity.idx}: ${error}`
           );
         }
       }

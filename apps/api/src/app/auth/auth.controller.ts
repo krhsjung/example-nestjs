@@ -11,6 +11,8 @@ import {
   HttpCode,
   UseGuards,
 } from '@nestjs/common';
+import { ThrottlerGuard, Throttle } from '@nestjs/throttler';
+import { randomBytes } from 'crypto';
 import { Request, Response } from 'express';
 import { AuthService } from './auth.service';
 import {
@@ -67,6 +69,11 @@ export class AuthController {
    * @returns 사용자 정보 (토큰은 쿠키로 설정)
    */
   @Post('register')
+  @UseGuards(ThrottlerGuard)
+  @Throttle({
+    short: { limit: 3, ttl: 60000 },
+    long: { limit: 10, ttl: 3600000 },
+  })
   async register(
     @Body() registerDto: RegisterDto,
     @Res({ passthrough: true }) response: Response
@@ -82,6 +89,11 @@ export class AuthController {
    * @returns 토큰 + 사용자 정보
    */
   @Post('register/mobile')
+  @UseGuards(ThrottlerGuard)
+  @Throttle({
+    short: { limit: 3, ttl: 60000 },
+    long: { limit: 10, ttl: 3600000 },
+  })
   async registerMobile(
     @Body() registerDto: RegisterDto
   ): Promise<AuthResponseDto> {
@@ -96,12 +108,18 @@ export class AuthController {
    * @returns 사용자 정보 (토큰은 쿠키로 설정)
    */
   @Post('login')
+  @UseGuards(ThrottlerGuard)
+  @Throttle({
+    short: { limit: 5, ttl: 60000 },
+    long: { limit: 20, ttl: 3600000 },
+  })
   async login(
     @Body() loginDto: LoginDto,
     @Res({ passthrough: true }) response: Response
   ): Promise<UserDto> {
-    const methodName = 'login';
-    this.logger.log(`[${methodName}] starting ${methodName}`);
+    this.logger.log(
+      `[login] starting login process for email: ${loginDto.email}`
+    );
 
     const tokens = await this.authService.handleLogin(loginDto);
     return this.setTokensAndReturnUser(response, tokens);
@@ -114,6 +132,11 @@ export class AuthController {
    * @returns 토큰 + 사용자 정보
    */
   @Post('login/mobile')
+  @UseGuards(ThrottlerGuard)
+  @Throttle({
+    short: { limit: 5, ttl: 60000 },
+    long: { limit: 20, ttl: 3600000 },
+  })
   async loginMobile(@Body() loginDto: LoginDto): Promise<AuthResponseDto> {
     const tokens = await this.authService.handleLogin(loginDto);
     const user = this.authService.getUserFromToken(tokens.accessToken);
@@ -127,6 +150,11 @@ export class AuthController {
    * @returns 토큰 + 사용자 정보
    */
   @Post('exchange')
+  @UseGuards(ThrottlerGuard)
+  @Throttle({
+    short: { limit: 5, ttl: 60000 },
+    long: { limit: 30, ttl: 3600000 },
+  })
   async exchange(@Body('code') code: string): Promise<AuthResponseDto> {
     const tokens = await this.authService.exchangeAuthCode(code);
     const user = this.authService.getUserFromToken(tokens.accessToken);
@@ -140,6 +168,11 @@ export class AuthController {
    * @returns 새로운 토큰 + 사용자 정보
    */
   @Post('refresh')
+  @UseGuards(ThrottlerGuard)
+  @Throttle({
+    short: { limit: 10, ttl: 60000 },
+    long: { limit: 60, ttl: 3600000 },
+  })
   async refresh(
     @Body('refreshToken') refreshToken: string
   ): Promise<AuthResponseDto> {
@@ -245,6 +278,11 @@ export class AuthController {
    * @returns 토큰 + 사용자 정보
    */
   @Post('apple/native')
+  @UseGuards(ThrottlerGuard)
+  @Throttle({
+    short: { limit: 5, ttl: 60000 },
+    long: { limit: 20, ttl: 3600000 },
+  })
   async appleNativeLogin(
     @Body('identityToken') identityToken: string,
     @Body('user') user: string,
@@ -264,11 +302,13 @@ export class AuthController {
    * Google에서 authorization code를 받아 토큰 교환 및 사용자 정보 조회
    */
   @Get('google/callback')
-  async authGooleCallback(
+  async authGoogleCallback(
     @Query() query: AuthCallback,
     @Res() response: Response
   ): Promise<void> {
-    this.logger.debug(`[authGoogleCallback] callback data:`, query);
+    this.logger.debug(
+      `[authGoogleCallback] callback data: ${JSON.stringify(query)}`
+    );
 
     if (query.error) {
       return this.sendResponse(response, query.state, 'error', query.error);
@@ -292,7 +332,9 @@ export class AuthController {
     @Body() body: AuthCallback,
     @Res() response: Response
   ): Promise<void> {
-    this.logger.debug(`[authAppleCallback] callback data:`, body);
+    this.logger.debug(
+      `[authAppleCallback] callback data: ${JSON.stringify(body)}`
+    );
 
     if (body.error) {
       return this.sendResponse(response, body.state, 'error', body.error);
@@ -357,7 +399,14 @@ export class AuthController {
         ok: isDone,
         ...(isDone ? { user: data } : { message: data }),
       };
-      response.type('html').send(this.popupRedirectHtml(targetOrigin, payload));
+      const nonce = randomBytes(16).toString('base64');
+      response
+        .setHeader(
+          'Content-Security-Policy',
+          `script-src 'nonce-${nonce}';`
+        )
+        .type('html')
+        .send(this.popupRedirectHtml(targetOrigin, payload, nonce));
     } else {
       response.redirect(targetOrigin);
     }
@@ -441,29 +490,40 @@ export class AuthController {
     const { flow } = this.parseState(state);
     const isMobileFlow = flow === AuthFlow.IOS || flow === AuthFlow.ANDROID;
 
-    // 공통: OAuth provider에서 사용자 정보 조회
-    const user = await this.authService.getUserFromOAuthProvider(
-      provider,
-      code,
-      appleUserData
-    );
+    try {
+      // 공통: OAuth provider에서 사용자 정보 조회
+      const user = await this.authService.getUserFromOAuthProvider(
+        provider,
+        code,
+        appleUserData
+      );
 
-    if (isMobileFlow) {
-      // 모바일: authCode 생성하여 전달 (세션은 exchange 시점에 생성)
-      const authCode = await this.authService.createAuthCode(user);
-      this.sendResponse(response, state, 'done', undefined, authCode);
-    } else {
-      // 웹: 세션 생성 후 쿠키에 토큰 저장
-      const tokens = await this.authService.createSessionForUser(user);
-      this.setTokenCookies(response, tokens);
-      this.sendResponse(response, state, 'done', user);
+      if (isMobileFlow) {
+        // 모바일: authCode 생성하여 전달 (세션은 exchange 시점에 생성)
+        const authCode = await this.authService.createAuthCode(user);
+        this.sendResponse(response, state, 'done', undefined, authCode);
+      } else {
+        // 웹: 세션 생성 후 쿠키에 토큰 저장
+        const tokens = await this.authService.createSessionForUser(user);
+        this.setTokenCookies(response, tokens);
+        this.sendResponse(response, state, 'done', user);
+      }
+    } catch (error) {
+      this.logger.error(
+        `[handleAuthCallback] OAuth callback failed for ${provider}: ${error}`
+      );
+      this.sendResponse(response, state, 'error', 'OAuth authentication failed');
     }
   }
 
-  private popupRedirectHtml(targetOrigin: string, payload: any): string {
+  private popupRedirectHtml(
+    targetOrigin: string,
+    payload: any,
+    nonce: string
+  ): string {
     return `
       <!doctype html><meta charset="utf-8">
-      <script>
+      <script nonce="${nonce}">
       (function () {
         try {
           if (window.opener) {
@@ -497,11 +557,6 @@ export class AuthController {
 
     const redirectUrl = `${baseUrl}?${params.toString()}`;
 
-    return `
-      <!doctype html><meta charset="utf-8">
-      <script>
-        window.location.href = "${redirectUrl}";
-      </script>
-    `;
+    return `<!doctype html><meta charset="utf-8"><meta http-equiv="refresh" content="0;url=${redirectUrl}">`;
   }
 }

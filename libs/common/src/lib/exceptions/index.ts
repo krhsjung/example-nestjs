@@ -12,3 +12,6 @@ export * from './constants/common.exceptions';
 
 // Exception helper utilities
 export * from './exception.helper';
+
+// Exception filters
+export * from './global-exception.filter';

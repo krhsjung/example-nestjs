@@ -22,7 +22,7 @@ export class UserController {
   @Get(':idx')
   async findOne(@Param('idx', ParseIntPipe) idx: number): Promise<UserDto> {
     this.logger.log(`[findOne][${idx}]: user_idx ${idx}`);
-    return await this.userService.fineOne(idx);
+    return await this.userService.findOne(idx);
   }
 
   @Patch(':idx')
@@ -31,7 +31,7 @@ export class UserController {
     @Body() userDto: UserDto
   ): Promise<UserDto> {
     this.logger.log(
-      `[update][${idx}]: user_information(${JSON.stringify(userDto)})`
+      `[update][${idx}]: user_information ${JSON.stringify(userDto)}`
     );
     return this.userService.update(idx, userDto);
   }

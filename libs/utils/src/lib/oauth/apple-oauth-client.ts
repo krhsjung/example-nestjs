@@ -77,6 +77,9 @@ export interface AppleNotificationEvents {
 
 export class AppleOAuthClient {
   private httpUtil: HttpUtil;
+  private cachedKeys: AppleJWK[] | null = null;
+  private keysCachedAt = 0;
+  private static readonly KEYS_CACHE_TTL = 3600 * 1000; // 1시간
 
   constructor(
     private readonly httpService: HttpService,
@@ -156,35 +159,49 @@ export class AppleOAuthClient {
   }
 
   /**
-   * Decode and verify Apple ID token to get user information
+   * Apple 공개 키 조회 (메모리 캐싱)
+   * TTL 내에는 캐시된 키를 반환하고, 만료 시에만 Apple 서버에서 재조회합니다.
    */
-  async getUserInfo(idToken: string): Promise<AppleUserInformation> {
-    try {
-      // Decode without verification first to get basic info
-      const decoded = jwt.decode(idToken) as AppleUserInformation;
-
-      if (!decoded) {
-        throw new Error('Failed to decode Apple ID token');
-      }
-
-      // In production, you should verify the token with Apple's public keys
-      // For now, we'll return the decoded information
-      return {
-        sub: decoded.sub,
-        email: decoded.email,
-        email_verified: decoded.email_verified,
-        is_private_email: decoded.is_private_email,
-        real_user_status: decoded.real_user_status,
-      };
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : 'Unknown error';
-      throw new Error(`Failed to get user info from ID token: ${errorMessage}`);
+  private async getApplePublicKeys(): Promise<AppleJWK[]> {
+    const now = Date.now();
+    if (
+      this.cachedKeys &&
+      now - this.keysCachedAt < AppleOAuthClient.KEYS_CACHE_TTL
+    ) {
+      return this.cachedKeys;
     }
+
+    const response = await this.httpUtil.get<{ keys: AppleJWK[] }>(
+      APPLE_KEYS_URL
+    );
+    this.cachedKeys = response.keys;
+    this.keysCachedAt = now;
+    return this.cachedKeys;
   }
 
   /**
-   * Verify identity token from native SDK (iOS/Android)
+   * kid에 해당하는 Apple 공개 키 조회
+   * 캐시에 kid가 없으면 캐시를 무효화하고 재조회합니다. (키 교체 대응)
+   */
+  private async findAppleKey(kid: string): Promise<AppleJWK> {
+    let keys = await this.getApplePublicKeys();
+    let key = keys.find((k) => k.kid === kid);
+
+    if (!key) {
+      this.cachedKeys = null;
+      keys = await this.getApplePublicKeys();
+      key = keys.find((k) => k.kid === kid);
+    }
+
+    if (!key) {
+      throw new Error('Apple public key not found for kid: ' + kid);
+    }
+    return key;
+  }
+
+  /**
+   * Verify identity token using Apple's public keys
+   * Used for both web OAuth callback (id_token) and native SDK (identityToken)
    * Fetches Apple's public keys and verifies the JWT signature
    */
   async verifyIdentityToken(
@@ -204,17 +221,9 @@ export class AppleOAuthClient {
           )})`
         );
       }
-      const header = decoded.header;
 
-      // 2. Fetch Apple's public keys
-      const keysResponse = await this.httpUtil.get<{ keys: AppleJWK[] }>(
-        APPLE_KEYS_URL
-      );
-      const appleKey = keysResponse.keys.find((key) => key.kid === header.kid);
-
-      if (!appleKey) {
-        throw new Error('Apple public key not found for kid: ' + header.kid);
-      }
+      // 2. Find Apple public key (with cache)
+      const appleKey = await this.findAppleKey(decoded.header.kid);
 
       // 3. Convert JWK to PEM format
       const publicKey = this.jwkToPem(appleKey);
@@ -229,8 +238,6 @@ export class AppleOAuthClient {
         issuer: 'https://appleid.apple.com',
         audience,
       }) as AppleUserInformation & { aud: string; iss: string; exp: number };
-
-      console.log(JSON.stringify(verified));
 
       return {
         sub: verified.sub,
@@ -260,15 +267,8 @@ export class AppleOAuthClient {
         throw new Error('Invalid webhook payload: missing kid in header');
       }
 
-      // 2. Fetch Apple's public keys
-      const keysResponse = await this.httpUtil.get<{ keys: AppleJWK[] }>(
-        APPLE_KEYS_URL
-      );
-      const appleKey = keysResponse.keys.find((key) => key.kid === header.kid);
-
-      if (!appleKey) {
-        throw new Error('Apple public key not found for kid: ' + header.kid);
-      }
+      // 2. Find Apple public key (with cache)
+      const appleKey = await this.findAppleKey(header.kid);
 
       // 3. Convert JWK to PEM format
       const publicKey = this.jwkToPem(appleKey);

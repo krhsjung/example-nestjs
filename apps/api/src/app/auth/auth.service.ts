@@ -127,11 +127,17 @@ export class AuthService {
     });
 
     if (!user || !user.password) {
+      this.logger.warn(
+        `[handleLogin] Failed login attempt for email: ${email} (user not found or no password)`
+      );
       throwException(NotFoundException, AUTH_EXCEPTIONS.CREDENTIALS_INVALID);
     }
 
     const isPasswordValid = await argon2.verify(user.password, password);
     if (!isPasswordValid) {
+      this.logger.warn(
+        `[handleLogin] Failed login attempt for email: ${email} (invalid password)`
+      );
       throwException(NotFoundException, AUTH_EXCEPTIONS.CREDENTIALS_INVALID);
     }
 
@@ -249,13 +255,18 @@ export class AuthService {
    * @returns 저장된 사용자 정보
    */
   private async handleGoogleCallback(code: string): Promise<UserDto> {
-    const token = await this.googleOAuthClient.getToken(
-      code,
-      OAuthMethod.DIRECT
-    );
+    let userInfo: GoogleUserInformation;
 
-    const userInfo: GoogleUserInformation =
-      await this.googleOAuthClient.getUserInfo(token.access_token);
+    try {
+      const token = await this.googleOAuthClient.getToken(
+        code,
+        OAuthMethod.DIRECT
+      );
+      userInfo = await this.googleOAuthClient.getUserInfo(token.access_token);
+    } catch (error) {
+      this.logger.error('[handleGoogleCallback] Google OAuth failed', error);
+      throwException(UnauthorizedException, AUTH_EXCEPTIONS.OAUTH_FAILED);
+    }
 
     const provider: AuthProvider = AuthProvider.GOOGLE;
     const { id: snsId, email, name, picture } = userInfo;
@@ -295,11 +306,17 @@ export class AuthService {
     code: string,
     appleUserData?: string
   ): Promise<UserDto> {
-    const token = await this.appleOAuthClient.getToken(code);
+    let userInfo: AppleUserInformation;
 
-    const userInfo: AppleUserInformation =
-      await this.appleOAuthClient.getUserInfo(token.id_token);
-    this.logger.log(JSON.stringify(userInfo));
+    try {
+      const token = await this.appleOAuthClient.getToken(code);
+      userInfo = await this.appleOAuthClient.verifyIdentityToken(
+        token.id_token
+      );
+    } catch (error) {
+      this.logger.error('[handleAppleCallback] Apple OAuth failed', error);
+      throwException(UnauthorizedException, AUTH_EXCEPTIONS.OAUTH_FAILED);
+    }
 
     const { fullName, email: additionalEmail } =
       this.parseAppleUserData(appleUserData);
@@ -379,8 +396,17 @@ export class AuthService {
       '[handleAppleNativeLogin] Verifying Apple identity token from native SDK'
     );
 
-    const userInfo: AppleUserInformation =
-      await this.appleOAuthClient.verifyIdentityToken(identityToken);
+    let userInfo: AppleUserInformation;
+
+    try {
+      userInfo = await this.appleOAuthClient.verifyIdentityToken(identityToken);
+    } catch (error) {
+      this.logger.error(
+        '[handleAppleNativeLogin] Apple token verification failed',
+        error
+      );
+      throwException(UnauthorizedException, AUTH_EXCEPTIONS.OAUTH_FAILED);
+    }
 
     this.logger.log(
       `[handleAppleNativeLogin] Token verified for user: ${userInfo.sub}`

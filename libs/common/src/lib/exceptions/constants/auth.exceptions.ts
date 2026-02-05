@@ -48,6 +48,11 @@ export const AUTH_EXCEPTIONS = {
     id: 'server_auth_code_invalid',
     message: 'Invalid or expired auth code',
   },
+  // OAuth
+  OAUTH_FAILED: {
+    id: 'server_oauth_failed',
+    message: 'OAuth authentication failed',
+  },
   // Apple
   APPLE_EMAIL_REQUIRED: {
     id: 'server_auth_apple_email_required',

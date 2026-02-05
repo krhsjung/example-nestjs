@@ -3,7 +3,7 @@ import {
   GoogleAuthClientOptions,
   RedisMode,
 } from '@example/utils';
-import { Injectable } from '@nestjs/common';
+import { Injectable, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { CookieOptions } from 'express';
 import { RedisOptions } from 'ioredis';
@@ -16,7 +16,31 @@ interface PostgresConfig {
 }
 
 @Injectable()
-export class ExampleConfigService extends ConfigService {
+export class ExampleConfigService
+  extends ConfigService
+  implements OnModuleInit
+{
+  onModuleInit() {
+    if (!this.isDevelopment) {
+      this.validateRequiredEnvVars([
+        'JWT_SECRET_KEY',
+        'JWT_REFRESH_SECRET_KEY',
+      ]);
+    }
+  }
+
+  private validateRequiredEnvVars(keys: string[]): void {
+    const missing = keys.filter((key) => !this.get<string>(key));
+    if (missing.length > 0) {
+      throw new Error(
+        `Missing required environment variables: ${missing.join(', ')}`
+      );
+    }
+  }
+  get isLocal(): boolean {
+    return process.env['NODE_ENV'] === 'local';
+  }
+
   get isDevelopment(): boolean {
     return (
       process.env['NODE_ENV'] === 'development' ||
@@ -72,7 +96,7 @@ export class ExampleConfigService extends ConfigService {
     };
   }
 
-  private providerReddirectUri(provider: string): string {
+  private providerRedirectUri(provider: string): string {
     return `https://${this.domain}/${this.globalPrefix}/auth/${provider}/callback`;
   }
 
@@ -86,7 +110,7 @@ export class ExampleConfigService extends ConfigService {
   }
 
   get googleRedirectUri(): string {
-    return this.providerReddirectUri('google');
+    return this.providerRedirectUri('google');
   }
 
   get googleClientOptions(): GoogleAuthClientOptions {
@@ -119,7 +143,7 @@ export class ExampleConfigService extends ConfigService {
   }
 
   get appleRedirectUri(): string {
-    return this.providerReddirectUri('apple');
+    return this.providerRedirectUri('apple');
   }
 
   get appleClientOptions(): AppleAuthClientOptions {
@@ -147,7 +171,7 @@ export class ExampleConfigService extends ConfigService {
 
   get accessTokenCookieOptions(): CookieOptions {
     return {
-      httpOnly: !this.isDevelopment, // 개발 환경에서는 false로 설정하여 브라우저에서 확인 가능
+      httpOnly: !this.isLocal, // 개발 환경에서는 false로 설정하여 브라우저에서 확인 가능
       secure: true,
       sameSite: 'none',
       path: '/',
@@ -157,7 +181,7 @@ export class ExampleConfigService extends ConfigService {
 
   get refreshTokenCookieOptions(): CookieOptions {
     return {
-      httpOnly: !this.isDevelopment,
+      httpOnly: !this.isLocal,
       secure: true,
       sameSite: 'none',
       path: '/',

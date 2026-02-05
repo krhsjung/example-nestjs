@@ -5,6 +5,7 @@ import {
   NestModule,
   OnModuleInit,
 } from '@nestjs/common';
+import { ThrottlerModule } from '@nestjs/throttler';
 import { UserModule } from './user/user.module';
 import { AuthModule } from './auth/auth.module';
 import { HealthModule } from './health/health.module';
@@ -23,6 +24,19 @@ import { DataSource } from 'typeorm';
 @Module({
   imports: [
     ExampleConfigModule,
+    // Rate Limiting: 기본값 (전체 API에 적용되지 않고, @Throttle() 데코레이터를 사용한 엔드포인트에만 적용)
+    ThrottlerModule.forRoot([
+      {
+        name: 'short',
+        ttl: 60000, // 1분
+        limit: 5, // 5회
+      },
+      {
+        name: 'long',
+        ttl: 3600000, // 1시간
+        limit: 100, // 100회
+      },
+    ]),
     UserModule,
     AuthModule,
     HealthModule,

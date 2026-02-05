@@ -4,6 +4,7 @@ import {
   Column,
   CreateDateColumn,
   Entity,
+  Index,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
@@ -13,6 +14,7 @@ export class User {
   @PrimaryGeneratedColumn({ name: 'idx' })
   idx!: number;
 
+  @Index('user_sns_id_key')
   @Column({ type: 'varchar', name: 'sns_id', unique: true, nullable: true })
   snsId?: string;
 
@@ -25,6 +27,7 @@ export class User {
   @Column({ type: 'varchar', name: 'name', nullable: false })
   name!: string;
 
+  @Index('user_email_key')
   @Column({ type: 'varchar', name: 'email', unique: true, nullable: false })
   email!: string;
 

@@ -15,7 +15,7 @@ export class RedisService implements OnModuleInit {
       const pong = await this.ping();
       this.logger.log(`Redis connected: ${pong}`);
     } catch (e) {
-      this.logger.log('Redis ping failed', e as any);
+      this.logger.error(`Redis ping failed: ${e}`);
     }
   }
 

@@ -59,6 +59,11 @@ export class TokenSessionService {
 
   /**
    * 세션 추가 (최대 세션 수 초과 시 가장 오래된 세션 제거)
+   *
+   * Lua script로 ZADD → ZCARD → ZPOPMIN → EXPIRE를 원자적으로 실행합니다.
+   * 개별 Redis 명령으로 처리하면 동시 로그인 시 ZADD와 ZCARD 사이에
+   * 다른 요청이 끼어들어 세션 수가 잘못 계산되거나,
+   * 방금 생성한 세션이 제거되는 race condition이 발생할 수 있습니다.
    */
   private async addSession(
     userId: number,
@@ -69,37 +74,43 @@ export class TokenSessionService {
     const key = `${this.SESSION_PREFIX}${userId}`;
     const now = Date.now();
 
-    // 현재 시간을 score로, sessionId를 member로 저장
-    await this.redisService.raw.zadd(key, now, sessionId);
+    const removedSessionIds = (await this.redisService.raw.eval(
+      `
+      redis.call('ZADD', KEYS[1], ARGV[1], ARGV[2])
+      local count = redis.call('ZCARD', KEYS[1])
+      local removed = {}
+      local max = tonumber(ARGV[3])
+      if count > max then
+        local excess = count - max
+        local popped = redis.call('ZPOPMIN', KEYS[1], excess)
+        for i = 1, #popped, 2 do
+          table.insert(removed, popped[i])
+        end
+      end
+      redis.call('EXPIRE', KEYS[1], ARGV[4])
+      return removed
+      `,
+      1,
+      key,
+      now,
+      sessionId,
+      maxSessions,
+      ttl
+    )) as string[];
 
-    // 세션 수 확인
-    const sessionCount = await this.redisService.raw.zcard(key);
-
-    if (sessionCount > maxSessions) {
-      // 가장 오래된 세션 제거 (score가 가장 낮은 것)
-      const removed = await this.redisService.raw.zpopmin(
-        key,
-        sessionCount - maxSessions
+    // 제거된 세션들의 Refresh Token도 Redis에서 삭제
+    for (const oldSessionId of removedSessionIds) {
+      await this.redisService.del(
+        `${this.REFRESH_TOKEN_PREFIX}${userId}:${oldSessionId}`
       );
-      this.logger.log(
-        `Removed ${
-          sessionCount - maxSessions
-        } old session(s) for user: ${userId}`
-      );
-
-      // 제거된 세션들의 Refresh Token도 Redis에서 삭제
-      if (Array.isArray(removed) && removed.length > 0) {
-        for (let i = 0; i < removed.length; i += 2) {
-          const oldSessionId = removed[i];
-          await this.redisService.del(
-            `${this.REFRESH_TOKEN_PREFIX}${userId}:${oldSessionId}`
-          );
-        }
-      }
     }
 
-    // TTL 설정
-    await this.redisService.raw.expire(key, ttl);
+    if (removedSessionIds.length > 0) {
+      this.logger.log(
+        `Removed ${removedSessionIds.length} old session(s) for user: ${userId}`
+      );
+    }
+
     this.logger.log(
       `Added session ${sessionId} for user: ${userId} (max: ${maxSessions})`
     );
@@ -175,32 +186,43 @@ export class TokenSessionService {
 
   /**
    * maxSessions 변경 시 기존 세션을 새로운 제한에 맞게 정리
+   *
+   * Lua script로 ZCARD → ZPOPMIN을 원자적으로 실행합니다.
+   * 개별 명령으로 처리하면 ZCARD 확인 후 ZPOPMIN 실행 사이에
+   * 새 세션이 추가되어 의도하지 않은 세션이 제거될 수 있습니다.
    */
   async enforceMaxSessions(
     userId: number,
     newMaxSessions: number
   ): Promise<void> {
     const key = `${this.SESSION_PREFIX}${userId}`;
-    const sessionCount = await this.redisService.raw.zcard(key);
-    this.logger.log(
-      `[enforceMaxSessions] Current sessions: ${sessionCount}, New maxSessions: ${newMaxSessions} for user: ${userId}`
-    );
-    if (sessionCount > newMaxSessions) {
-      // 가장 오래된 세션들을 제거
-      const toRemove = sessionCount - newMaxSessions;
-      const removed = await this.redisService.raw.zpopmin(key, toRemove);
-      this.logger.log(
-        `[enforceMaxSessions] Removed ${toRemove} old session(s) for user: ${userId} (new limit: ${newMaxSessions})`
-      );
 
-      // 제거된 세션들의 Refresh Token도 삭제
-      if (Array.isArray(removed) && removed.length > 0) {
-        for (let i = 0; i < removed.length; i += 2) {
-          const oldSessionId = removed[i];
-          await this.deleteRefreshToken(userId, oldSessionId);
-        }
-      }
+    const removedSessionIds = (await this.redisService.raw.eval(
+      `
+      local count = redis.call('ZCARD', KEYS[1])
+      local removed = {}
+      local max = tonumber(ARGV[1])
+      if count > max then
+        local excess = count - max
+        local popped = redis.call('ZPOPMIN', KEYS[1], excess)
+        for i = 1, #popped, 2 do
+          table.insert(removed, popped[i])
+        end
+      end
+      return removed
+      `,
+      1,
+      key,
+      newMaxSessions
+    )) as string[];
+
+    for (const oldSessionId of removedSessionIds) {
+      await this.deleteRefreshToken(userId, oldSessionId);
     }
+
+    this.logger.log(
+      `[enforceMaxSessions] Removed ${removedSessionIds.length} old session(s) for user: ${userId} (new limit: ${newMaxSessions})`
+    );
   }
 
   /**
@@ -318,7 +340,9 @@ export class TokenSessionService {
       sub: payload.sub,
       email: payload.email,
       name: payload.name,
+      picture: payload.picture,
       provider: payload.provider,
+      maxSessions: payload.maxSessions,
       jti: payload.jti,
     };
 

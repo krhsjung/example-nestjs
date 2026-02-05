@@ -63,8 +63,9 @@ export class TokenRefreshMiddleware implements NestMiddleware {
 
     // Access Token 만료 → Refresh Token으로 갱신 시도
     try {
-      const tokens =
-        await this.tokenSessionService.refreshTokenPair(refreshToken);
+      const tokens = await this.tokenSessionService.refreshTokenPair(
+        refreshToken
+      );
 
       // 새 토큰을 쿠키에 설정
       res.cookie(
@@ -85,7 +86,10 @@ export class TokenRefreshMiddleware implements NestMiddleware {
       this.logger.log('Token refreshed successfully via middleware');
     } catch (refreshError) {
       // 갱신 실패 → Guard에 위임 (만료된 토큰으로 TOKEN_EXPIRED 에러 발생)
-      this.logger.warn('Token refresh failed in middleware');
+      this.logger.warn(
+        'Token refresh failed in middleware',
+        refreshError instanceof Error ? refreshError.message : refreshError
+      );
     }
 
     next();
@@ -103,7 +107,9 @@ export class TokenRefreshMiddleware implements NestMiddleware {
     // throwException으로 래핑된 경우 JSON message에서 id로 판별
     if (error && typeof error === 'object' && 'getResponse' in error) {
       try {
-        const response = (error as { getResponse: () => unknown }).getResponse();
+        const response = (
+          error as { getResponse: () => unknown }
+        ).getResponse();
         const message =
           typeof response === 'string'
             ? response

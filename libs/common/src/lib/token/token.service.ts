@@ -1,7 +1,16 @@
-import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
+import {
+  Injectable,
+  InternalServerErrorException,
+  Logger,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { JwtTokenService } from '@example/utils';
 import { UserDto } from '../dtos';
-import { AUTH_EXCEPTIONS, throwException } from '../exceptions';
+import {
+  AUTH_EXCEPTIONS,
+  COMMON_EXCEPTIONS,
+  throwException,
+} from '../exceptions';
 import { JwtPayload } from './types/jwt-payload.types';
 
 /**
@@ -54,8 +63,15 @@ export class TokenService {
    * UserDto를 JwtPayload로 변환
    */
   userToPayload(user: UserDto, sessionId: string): JwtPayload {
+    if (user.idx == null) {
+      throwException(
+        InternalServerErrorException,
+        COMMON_EXCEPTIONS.INTERNAL_SERVER_ERROR
+      );
+    }
+
     return {
-      sub: user.idx!,
+      sub: user.idx,
       email: user.email,
       name: user.name,
       picture: user.picture,
