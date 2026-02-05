@@ -25,6 +25,7 @@ export class ExampleConfigService
       this.validateRequiredEnvVars([
         'JWT_SECRET_KEY',
         'JWT_REFRESH_SECRET_KEY',
+        'COTURN_TURN_SECRET',
       ]);
     }
   }
@@ -102,11 +103,11 @@ export class ExampleConfigService
 
   // Google OAuth 설정
   get googleClientId(): string {
-    return this.get<string>('EXAMPLE_GOOGLE_CLIENT_ID') || '';
+    return this.getOrThrow<string>('EXAMPLE_GOOGLE_CLIENT_ID');
   }
 
   get googleClientSecret(): string {
-    return this.get<string>('EXAMPLE_GOOGLE_CLIENT_SECRET') || '';
+    return this.getOrThrow<string>('EXAMPLE_GOOGLE_CLIENT_SECRET');
   }
 
   get googleRedirectUri(): string {
@@ -123,23 +124,23 @@ export class ExampleConfigService
 
   // Apple OAuth 설정
   get appleTeamId(): string {
-    return this.get<string>('EXAMPLE_APPLE_TEAM_ID') || '';
+    return this.getOrThrow<string>('EXAMPLE_APPLE_TEAM_ID');
   }
 
   get appleClientId(): string {
-    return this.get<string>('EXAMPLE_APPLE_CLIENT_ID') || '';
+    return this.getOrThrow<string>('EXAMPLE_APPLE_CLIENT_ID');
   }
 
   get appleBundleId(): string {
-    return this.get<string>('EXAMPLE_APPLE_BUNDLE_ID') || '';
+    return this.getOrThrow<string>('EXAMPLE_APPLE_BUNDLE_ID');
   }
 
   get appleKeyId(): string {
-    return this.get<string>('EXAMPLE_APPLE_KEY_ID') || '';
+    return this.getOrThrow<string>('EXAMPLE_APPLE_KEY_ID');
   }
 
   get applePrivateKey(): string {
-    return this.get<string>('EXAMPLE_APPLE_PRIVATE_KEY') || '';
+    return this.getOrThrow<string>('EXAMPLE_APPLE_PRIVATE_KEY');
   }
 
   get appleRedirectUri(): string {
@@ -159,14 +160,11 @@ export class ExampleConfigService
 
   // JWT 설정
   get jwtSecret(): string {
-    return this.get<string>('JWT_SECRET_KEY') || 'default-jwt-secret-key';
+    return this.getOrThrow<string>('JWT_SECRET_KEY');
   }
 
   get jwtRefreshSecret(): string {
-    return (
-      this.get<string>('JWT_REFRESH_SECRET_KEY') ||
-      'default-jwt-refresh-secret-key'
-    );
+    return this.getOrThrow<string>('JWT_REFRESH_SECRET_KEY');
   }
 
   get accessTokenCookieOptions(): CookieOptions {
@@ -204,5 +202,10 @@ export class ExampleConfigService
 
   get appOAuthCallbackUrl(): string {
     return `${this.appUrlScheme}://oauth/callback`;
+  }
+
+  // TURN Server
+  get coturnTurnSecret(): string {
+    return this.getOrThrow<string>('COTURN_TURN_SECRET');
   }
 }

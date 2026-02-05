@@ -9,6 +9,7 @@ import { ThrottlerModule } from '@nestjs/throttler';
 import { UserModule } from './user/user.module';
 import { AuthModule } from './auth/auth.module';
 import { HealthModule } from './health/health.module';
+import { TurnModule } from './turn/turn.module';
 import {
   ExampleConfigModule,
   ExampleConfigService,
@@ -40,6 +41,7 @@ import { DataSource } from 'typeorm';
     UserModule,
     AuthModule,
     HealthModule,
+    TurnModule,
     PostgresModule.forRootAsync(),
     RedisModule.registerAsync({
       isGlobal: true,
