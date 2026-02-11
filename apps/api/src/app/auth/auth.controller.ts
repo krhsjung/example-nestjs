@@ -353,7 +353,10 @@ export class AuthController {
    * OAuth state 파라미터 파싱
    * @param state - JSON 문자열로 인코딩된 state (flow, origin 포함)
    */
-  private parseState(state: string): { flow: AuthFlow; origin: string | null } {
+  private parseState(state: string | undefined): {
+    flow: AuthFlow;
+    origin: string | null;
+  } {
     return state
       ? (JSON.parse(state) as { flow: AuthFlow; origin: string })
       : { flow: DEFAULT_AUTH_FLOW as AuthFlow, origin: null };
@@ -377,7 +380,7 @@ export class AuthController {
    */
   private sendResponse(
     response: Response,
-    state: string,
+    state: string | undefined,
     type: RedirectResponse,
     data?: UserDto | string,
     authCode?: string
@@ -484,7 +487,7 @@ export class AuthController {
     response: Response,
     provider: AuthProvider,
     code: string,
-    state: string,
+    state: string | undefined,
     appleUserData?: string
   ) {
     const { flow } = this.parseState(state);
