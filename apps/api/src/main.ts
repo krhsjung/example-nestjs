@@ -14,11 +14,14 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const configService = app.get(ExampleConfigService);
 
-  // 보안 헤더 미들웨어 (X-Content-Type-Options, X-Frame-Options, CSP 등)
+  // 보안 헤더 미들웨어 (X-Content-Type-Options, X-Frame-Options 등)
+  // - CSP 비활성화: API 서버라 HTML 응답이 OAuth 콜백 정도뿐
+  // - COOP 비활성화: OAuth 팝업에서 window.opener 접근이 필요
   // - 개발 환경에서는 HSTS 비활성화 (localhost HTTP 접근 허용)
-  // - 프로덕션 환경에서는 helmet 기본값 적용 (HSTS 포함)
   app.use(
     helmet({
+      contentSecurityPolicy: false,
+      crossOriginOpenerPolicy: false,
       hsts: configService.isDevelopment ? false : undefined,
     })
   );

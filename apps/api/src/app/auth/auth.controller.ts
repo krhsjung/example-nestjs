@@ -404,10 +404,7 @@ export class AuthController {
       };
       const nonce = randomBytes(16).toString('base64');
       response
-        .setHeader(
-          'Content-Security-Policy',
-          `script-src 'nonce-${nonce}';`
-        )
+        .setHeader('Content-Security-Policy', `script-src 'nonce-${nonce}';`)
         .type('html')
         .send(this.popupRedirectHtml(targetOrigin, payload, nonce));
     } else {
@@ -515,7 +512,12 @@ export class AuthController {
       this.logger.error(
         `[handleAuthCallback] OAuth callback failed for ${provider}: ${error}`
       );
-      this.sendResponse(response, state, 'error', 'OAuth authentication failed');
+      this.sendResponse(
+        response,
+        state,
+        'error',
+        'OAuth authentication failed'
+      );
     }
   }
 
