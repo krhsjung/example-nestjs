@@ -204,6 +204,22 @@ export class ExampleConfigService
     return `${this.appUrlScheme}://oauth/callback`;
   }
 
+  get androidPackageName(): string {
+    return this.get<string>('EXAMPLE_ANDROID_PACKAGE_NAME') || '';
+  }
+
+  get androidSha256Fingerprint(): string {
+    return this.get<string>('EXAMPLE_ANDROID_SHA256_FINGERPRINT') || '';
+  }
+
+  get appStoreUrl(): string {
+    return this.get<string>('EXAMPLE_APP_STORE_URL') || '';
+  }
+
+  get playStoreUrl(): string {
+    return this.get<string>('EXAMPLE_PLAY_STORE_URL') || '';
+  }
+
   // TURN Server
   get coturnTurnSecret(): string {
     return this.getOrThrow<string>('COTURN_TURN_SECRET');

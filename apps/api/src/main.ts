@@ -53,7 +53,9 @@ async function bootstrap() {
     })
   );
 
-  app.setGlobalPrefix(configService.globalPrefix);
+  app.setGlobalPrefix(configService.globalPrefix, {
+    exclude: ['.well-known/(.*)', 'link/(.*)'],
+  });
   const port = process.env.EXAMPLE_API_PORT || 3000;
   await app.listen(port);
   Logger.log(

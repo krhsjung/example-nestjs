@@ -10,6 +10,7 @@ import { UserModule } from './user/user.module';
 import { AuthModule } from './auth/auth.module';
 import { HealthModule } from './health/health.module';
 import { TurnModule } from './turn/turn.module';
+import { DeepLinkModule } from './deep-link/deep-link.module';
 import {
   ExampleConfigModule,
   ExampleConfigService,
@@ -42,6 +43,7 @@ import { DataSource } from 'typeorm';
     AuthModule,
     HealthModule,
     TurnModule,
+    DeepLinkModule,
     PostgresModule.forRootAsync(),
     RedisModule.registerAsync({
       isGlobal: true,
